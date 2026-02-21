@@ -7,6 +7,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.jspecify.annotations.NonNull;
 
 import java.util.List;
 import java.util.UUID;
@@ -25,7 +26,7 @@ public class CombatCommand implements CommandExecutor {
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+    public boolean onCommand(CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
         if (!sender.hasPermission("combat.use")) {
             sender.sendMessage(ChatColor.RED + "No permission!");
             return true;
@@ -59,16 +60,20 @@ public class CombatCommand implements CommandExecutor {
             return true;
         }
         for (CombatRecord record : records) {
-            boolean isOutgoingHit = record.attackerUUID().equals(targetUuid);
-            String prefix = isOutgoingHit ? ChatColor.GREEN + "Hit " : ChatColor.RED + "Hit by ";
-            String victimOrAttacker = isOutgoingHit ? record.victimName() : record.attackerName();
-            String killTag = record.isFatalKill() ? ChatColor.DARK_RED + " [KILL]" : "";
-            String msg = String.format("%s§e%s§a (%.1fdmg%s) §b%s §aat §c%.0f,%.0f,%.0f §a(%s body)%s",
-                    prefix, victimOrAttacker, record.damageAmount(), killTag, record.weaponMaterial().name(),
-                    record.hitLocation().getX(), record.hitLocation().getY(), record.hitLocation().getZ(),
-                    record.hitBodyPart(), ChatColor.RESET);
+            String msg = getString(record, targetUuid);
             sender.sendMessage(msg);
         }
         return true;
+    }
+
+    private static @NonNull String getString(CombatRecord record, UUID targetUuid) {
+        boolean isOutgoingHit = record.attackerUUID().equals(targetUuid);
+        String prefix = isOutgoingHit ? ChatColor.GREEN + "Hit " : ChatColor.RED + "Hit by ";
+        String victimOrAttacker = isOutgoingHit ? record.victimName() : record.attackerName();
+        String killTag = record.isFatalKill() ? ChatColor.DARK_RED + " [KILL]" : "";
+        return String.format("%s§e%s§a (%.1fdmg%s) §b%s §aat §c%.0f,%.0f,%.0f §a(%s body)%s",
+                prefix, victimOrAttacker, record.damageAmount(), killTag, record.weaponMaterial().name(),
+                record.hitLocation().getX(), record.hitLocation().getY(), record.hitLocation().getZ(),
+                record.hitBodyPart(), ChatColor.RESET);
     }
 }

@@ -1,4 +1,4 @@
-// Step 9: Add new class src/main/java/com/example/FightTabCompleter.java
+// Update to src/main/java/com/example/FightTabCompleter.java (add 'list' to completions)
 package com.example;
 
 import org.bukkit.Bukkit;
@@ -11,14 +11,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Tab completion for /fight: Subcmds, add/remove players (online only).
+ * Tab for /fight: Includes 'list' subcmd.
  */
 public class FightTabCompleter implements TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
-            completions.addAll(List.of("team1", "team2", "start", "end", "clear", "scores", "status", "reload", "toggle"));
+            completions.addAll(List.of("team1", "team2", "start", "end", "clear", "scores", "status", "reload", "toggle", "list"));
         } else if (args.length == 2) {
             if (args[0].equalsIgnoreCase("team1") || args[0].equalsIgnoreCase("team2")) {
                 completions.addAll(List.of("add", "remove"));

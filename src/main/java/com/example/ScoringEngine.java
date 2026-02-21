@@ -1,4 +1,4 @@
-// Step 4: Update src/main/java/com/example/ScoringEngine.java (complete armor tiers, add session-filtered scoring)
+// Update to src/main/java/com/example/ScoringEngine.java (fix: only award points if attacker and victim on opposite teams)
 package com.example;
 
 import org.bukkit.Material;
@@ -10,8 +10,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Heuristic scoring from CombatRecords: Rewards underdog weapons/armor kills, blocks, damage.
- * Filters to fight session; configurable via ConfigManager.
+ * Scores CombatRecords with heuristics: Only cross-team actions score in fights.
+ * Filters to session; configurable.
  */
 public class ScoringEngine {
     private final ConfigManager config;
@@ -20,33 +20,46 @@ public class ScoringEngine {
         this.config = config;
     }
 
-    /**
-     * Calculates team scores from cache records in specific fight session only.
-     */
     public ScorePair calculateSessionScores(ConcurrentHashMap<UUID, Deque<CombatRecord>> recordsMap, UUID sessionId, Set<UUID> team1, Set<UUID> team2) {
         int team1Score = 0;
         int team2Score = 0;
         for (var entry : recordsMap.entrySet()) {
             UUID attackerId = entry.getKey();
             boolean attackerTeam1 = team1.contains(attackerId);
+            boolean attackerTeam2 = team2.contains(attackerId);
+            if (!attackerTeam1 && !attackerTeam2) continue;  // Ignore non-team attackers
+
             for (CombatRecord record : entry.getValue()) {
-                // Filter to this fight session
                 if (record.fightSessionId() == null || !record.fightSessionId().equals(sessionId)) continue;
-                boolean victimTeam1 = team1.contains(record.victimUUID());
-                // Hit points to attacker
-                int hitPoints = getHitPoints(record);
-                if (attackerTeam1) team1Score += hitPoints; else team2Score += hitPoints;
-                // Kill bonus to killer
-                if (record.isFatalKill()) {
-                    int killPoints = getKillPoints(record);
-                    if (attackerTeam1) team1Score += killPoints; else team2Score += killPoints;
-                }
-                // Block bonuses
-                if (record.wasVictimBlocking()) {
-                    int hitterBonus = config.getBlockHitterPoints();
-                    int blockerBonus = config.getBlockBlockerPoints();
-                    if (attackerTeam1) team1Score += hitterBonus; else team2Score += hitterBonus;
-                    if (victimTeam1) team1Score += blockerBonus; else team2Score += blockerBonus;
+
+                UUID victimId = record.victimUUID();
+                boolean victimTeam1 = team1.contains(victimId);
+                boolean victimTeam2 = team2.contains(victimId);
+                if (!victimTeam1 && !victimTeam2) continue;  // Ignore non-team victims
+
+                // Only score if opposite teams
+                if ((attackerTeam1 && victimTeam2) || (attackerTeam2 && victimTeam1)) {
+                    // Hit points to attacker
+                    int hitPoints = getHitPoints(record);
+                    if (attackerTeam1) team1Score += hitPoints;
+                    else team2Score += hitPoints;
+
+                    // Kill bonus to killer
+                    if (record.isFatalKill()) {
+                        int killPoints = getKillPoints(record);
+                        if (attackerTeam1) team1Score += killPoints;
+                        else team2Score += killPoints;
+                    }
+
+                    // Block bonuses: Hitter small, blocker big
+                    if (record.wasVictimBlocking()) {
+                        int hitterBonus = config.getBlockHitterPoints();
+                        int blockerBonus = config.getBlockBlockerPoints();
+                        if (attackerTeam1) team1Score += hitterBonus;
+                        else team2Score += hitterBonus;
+                        if (victimTeam1) team1Score += blockerBonus;
+                        else team2Score += blockerBonus;
+                    }
                 }
             }
         }
@@ -77,9 +90,6 @@ public class ScoringEngine {
         };
     }
 
-    /**
-     * Computes average armor tier (0-6) of victim at hit/kill time.
-     */
     public static int calculateAverageArmorTier(Player player) {
         var armor = player.getInventory().getArmorContents();
         int totalTier = 0, count = 0;

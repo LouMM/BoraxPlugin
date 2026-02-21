@@ -1,4 +1,4 @@
-// Step 7: Add new class src/main/java/com/example/FightManager.java
+// Update to src/main/java/com/example/FightManager.java (fix scoring: only score if attacker and victim on opposite teams; persist bossbar by re-adding on player join/respawn)
 package com.example;
 
 import org.bukkit.Bukkit;
@@ -6,6 +6,10 @@ import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -15,10 +19,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * Manages fight sessions: Teams, bossbar timer/display, real-time scoring, end-game loot theft from losers.
- * Self-contained; updates bossbar for all online players.
+ * Fight session manager: Teams, timer bossbar (persists for participants), cross-team scoring, end loot theft.
+ * Adds bossbar on join/respawn for active fights.
  */
-public class FightManager {
+public class FightManager implements Listener {
     private final JavaPlugin plugin;
     private final ConfigManager configManager;
     private final CombatCache combatCache;
@@ -37,6 +41,15 @@ public class FightManager {
         this.configManager = configManager;
         this.combatCache = combatCache;
         this.scoringEngine = scoringEngine;
+        plugin.getServer().getPluginManager().registerEvents(this, plugin);  // Register self for join/respawn
+    }
+
+    public Set<UUID> getTeam1Players() {
+        return team1Players;
+    }
+
+    public Set<UUID> getTeam2Players() {
+        return team2Players;
     }
 
     public void addToTeam1(Player player) {
@@ -64,11 +77,8 @@ public class FightManager {
         return currentSessionId;
     }
 
-    /**
-     * Starts fight: Generates session ID, shows bossbar to all, ticks scores/timer every second.
-     */
     public void startFight() {
-        if (!configManager.isFightModeEnabled() || (!team1Players.isEmpty() && !team2Players.isEmpty())) {
+        if (!configManager.isFightModeEnabled() || team1Players.isEmpty() || team2Players.isEmpty()) {
             plugin.getLogger().warning("Cannot start fight: Fight mode disabled or teams empty.");
             return;
         }
@@ -77,9 +87,7 @@ public class FightManager {
         fightEndTime = System.currentTimeMillis() + (durationSeconds * 1000L);
 
         bossBar = Bukkit.createBossBar("FIGHT starting...", BarColor.RED, BarStyle.SOLID);
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            bossBar.addPlayer(p);
-        }
+        updateBossBarPlayers();  // Add to participants only
 
         fightTask = new BukkitRunnable() {
             @Override
@@ -100,23 +108,50 @@ public class FightManager {
                 bossBar.setProgress(Math.min(1.0, remainingMs / (durationSeconds * 1000.0)));
             }
         };
-        fightTask.runTaskTimer(plugin, 0L, 20L);  // Every second
+        fightTask.runTaskTimer(plugin, 0L, 20L);  // Tick every second
+    }
+
+    private void updateBossBarPlayers() {
+        if (bossBar == null) return;
+        bossBar.removeAll();  // Clear first
+        Set<UUID> allParticipants = new HashSet<>();
+        allParticipants.addAll(team1Players);
+        allParticipants.addAll(team2Players);
+        for (UUID uuid : allParticipants) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                bossBar.addPlayer(p);
+            }
+        }
+    }
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        if (bossBar != null && isParticipant(event.getPlayer().getUniqueId())) {
+            bossBar.addPlayer(event.getPlayer());
+        }
+    }
+
+    @EventHandler
+    public void onPlayerRespawn(PlayerRespawnEvent event) {
+        if (bossBar != null && isParticipant(event.getPlayer().getUniqueId())) {
+            bossBar.addPlayer(event.getPlayer());
+        }
+    }
+
+    private boolean isParticipant(UUID uuid) {
+        return team1Players.contains(uuid) || team2Players.contains(uuid);
     }
 
     private String getPlayerNamesShort(Set<UUID> uuids) {
         return uuids.stream()
-                .map(uuid -> {
-                    Player p = Bukkit.getPlayer(uuid);
-                    return p != null ? p.getName() : "Unknown";
-                })
+                .map(Bukkit::getPlayer)
+                .filter(Objects::nonNull)
+                .map(Player::getName)
                 .limit(3)
-                .collect(Collectors.joining(", "))
-                .replaceAll("(.{0,12}).*", "$1");  // Trunc ~12 chars
+                .collect(Collectors.joining(", "));
     }
 
-    /**
-     * Ends fight: Calculates final scores, steals random high-value item per loser to random winner.
-     */
     public void endCurrentFight() {
         if (fightTask != null) {
             fightTask.cancel();

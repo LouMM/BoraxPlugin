@@ -1,4 +1,4 @@
-// Step 8: Add new class src/main/java/com/example/FightCommand.java
+// Update to src/main/java/com/example/FightCommand.java (add 'list' subcommand for all players; send join msg to added player)
 package com.example;
 
 import org.bukkit.Bukkit;
@@ -7,10 +7,16 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jspecify.annotations.NonNull;
+
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
- * Handles /fight subcommands: team management, start/end, scores, config toggle/reload/status.
- * OP-only; tab-completes players for add/remove.
+ * /fight handler: Team add/remove, start/end, etc. 'list' open to all (no perm).
+ * Sends team join message to player on add.
  */
 public class FightCommand implements CommandExecutor {
     private final JavaPlugin plugin;
@@ -24,16 +30,29 @@ public class FightCommand implements CommandExecutor {
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("fight.use")) {
-            sender.sendMessage("§cNo permission!");
-            return true;
-        }
+    public boolean onCommand(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String[] args) {
         if (args.length == 0) {
-            sender.sendMessage("§e/fight <team1|team2|start|end|clear|scores|status|reload|toggle [combat|fight]>");
+            sender.sendMessage("§e/fight <team1|team2|start|end|clear|scores|status|reload|toggle [combat|fight]|list>");
             return true;
         }
         String subCmd = args[0].toLowerCase();
+
+        // 'list' subcommand: Open to all players, lists teams
+        if (subCmd.equals("list")) {
+            String team1List = getTeamPlayerNames(fightManager.getTeam1Players());
+            String team2List = getTeamPlayerNames(fightManager.getTeam2Players());
+            sender.sendMessage("§eCurrent Teams:");
+            sender.sendMessage("§aTeam1: §f" + (team1List.isEmpty() ? "Empty" : team1List));
+            sender.sendMessage("§cTeam2: §f" + (team2List.isEmpty() ? "Empty" : team2List));
+            return true;
+        }
+
+        // Other subcommands require permission
+        if (!sender.hasPermission("fight.use")) {
+            sender.sendMessage("§cNo permission! (But you can use /fight list)");
+            return true;
+        }
+
         switch (subCmd) {
             case "team1", "team2" -> handleTeamCmd(sender, args, subCmd.equals("team1"));
             case "start" -> {
@@ -89,13 +108,26 @@ public class FightCommand implements CommandExecutor {
             return;
         }
         if (args[1].equalsIgnoreCase("add")) {
-            if (isTeam1) fightManager.addToTeam1(target);
-            else fightManager.addToTeam2(target);
+            if (isTeam1) {
+                fightManager.addToTeam1(target);
+                target.sendMessage("§aYou are now on §aTeam1 §awith: §f" + getTeamPlayerNames(fightManager.getTeam1Players()));
+            } else {
+                fightManager.addToTeam2(target);
+                target.sendMessage("§aYou are now on §cTeam2 §awith: §f" + getTeamPlayerNames(fightManager.getTeam2Players()));
+            }
             sender.sendMessage("§aAdded §e" + target.getName() + " §ato " + (isTeam1 ? "Team1" : "Team2"));
         } else {
             if (isTeam1) fightManager.removeFromTeam1(target);
             else fightManager.removeFromTeam2(target);
             sender.sendMessage("§cRemoved §e" + target.getName() + " §cfrom " + (isTeam1 ? "Team1" : "Team2"));
         }
+    }
+
+    private String getTeamPlayerNames(Set<UUID> team) {
+        return team.stream()
+                .map(Bukkit::getPlayer)
+                .filter(Objects::nonNull)
+                .map(Player::getName)
+                .collect(Collectors.joining(", "));
     }
 }
