@@ -1,0 +1,32 @@
+<!-- Step 3: Create src/main/resources/config.yml (auto-generated on first run, but paste this for defaults) -->
+# Feature gates: Enable/disable modules via commands or edit+restart
+enableCombatTracking: true
+enableFightMode: true
+
+# Fight settings
+fightDefaultDurationSeconds: 600
+
+# Scoring heuristics (customizable)
+scoring:
+  hitDamageMultiplier: 2.0  # Points per damage dealt
+  blockHitterPoints: 1      # Small bonus for hitting a blocking shield
+  blockBlockerPoints: 5     # Big bonus for successfully blocking
+  killBasePoints: 50        # Base kill points
+  armorBonusPerTier: 10     # Bonus per armor tier of victim (1-6)
+  weakWeaponBonusPerTier: 15 # Bonus per tier below max (rewards underdog weapons like sticks)
+
+# Items stolen from losers (material names)
+highValueItems:
+  - DIAMOND_SWORD
+  - NETHERITE_SWORD
+  - DIAMOND_AXE
+  - NETHERITE_AXE
+  - ELYTRA
+  - DIAMOND_CHESTPLATE
+  - NETHERITE_CHESTPLATE
+  - DIAMOND_HELMET
+  - NETHERITE_HELMET
+  - NETHERITE_INGOT
+  - DIAMOND
+  - ENCHANTED_BOOK
+  - NETHER_STAR

@@ -1,0 +1,94 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+.kotlin
+
+### IntelliJ IDEA ###
+.idea/modules.xml
+.idea/jarRepositories.xml
+.idea/compiler.xml
+.idea/libraries/
+*.iws
+*.iml
+*.ipr
+
+### Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
+
+# --- Compiled Output ---
+*.class
+*.log
+*.jar
+*.war
+*.ear
+/target/
+/build/
+/.gradle/
+
+# --- IDE Specifics ---
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+out/
+
+# Eclipse
+.settings/
+.project
+.classpath
+bin/
+
+# VS Code
+.vscode/
+
+# --- Minecraft Server Files ---
+# Ignore these if you run your test server directly in the project root
+eula.txt
+server.properties
+help.yml
+permissions.yml
+whitelist.json
+banned-ips.json
+banned-players.json
+ops.json
+usercache.json
+/logs/
+/plugins/
+/world/
+/world_nether/
+/world_the_end/
+/cache/
+/libraries/
+/versions/
+/bundler/
+paper.yml
+spigot.yml
+bukkit.yml
+commands.yml
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db

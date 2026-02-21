@@ -1,0 +1,29 @@
+<!-- Step 2: Replace src/main/resources/plugin.yml with this (adds new commands/permissions) -->
+name: PlayerLocs
+version: '${project.version}'
+main: com.example.PlayerLocs
+api-version: '1.21'
+author: You
+commands:
+  locs:
+    description: Send player locations to API
+    usage: /locs
+    permission: playerlocs.use
+  fight:
+    description: Manage Fight mode teams and start fights
+    usage: /fight <team1|team2|start|end|scores|reload|toggle>
+    permission: fight.use
+  combat:
+    description: Lookup combat data
+    usage: /combat lookup <player-or-uuid> [limit]
+    permission: combat.use
+permissions:
+  playerlocs.use:
+    description: Use /locs
+    default: op
+  fight.use:
+    description: Use Fight mode
+    default: op
+  combat.use:
+    description: Use combat lookup
+    default: op
