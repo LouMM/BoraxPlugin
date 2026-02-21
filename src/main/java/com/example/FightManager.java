@@ -1,4 +1,4 @@
-// Update to src/main/java/com/example/FightManager.java (fix scoring: only score if attacker and victim on opposite teams; persist bossbar by re-adding on player join/respawn)
+// Update to src/main/java/com/example/FightManager.java (add import for Collectors)
 package com.example;
 
 import org.bukkit.Bukkit;
@@ -15,11 +15,10 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * Fight session manager: Teams, timer bossbar (persists for participants), cross-team scoring, end loot theft.
+ * Fight session manager: Teams, bossbar (persists for participants), cross-team scoring, end loot theft.
  * Adds bossbar on join/respawn for active fights.
  */
 public class FightManager implements Listener {
@@ -27,29 +26,31 @@ public class FightManager implements Listener {
     private final ConfigManager configManager;
     private final CombatCache combatCache;
     private final ScoringEngine scoringEngine;
+    private final PersistenceManager persistenceManager;
 
-    private final Set<UUID> team1Players = ConcurrentHashMap.newKeySet();
-    private final Set<UUID> team2Players = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> team1Players = new HashSet<>();
+    private final Set<UUID> team2Players = new HashSet<>();
 
     private UUID currentSessionId;
     private BossBar bossBar;
     private BukkitRunnable fightTask;
     private long fightEndTime;
 
-    public FightManager(JavaPlugin plugin, ConfigManager configManager, CombatCache combatCache, ScoringEngine scoringEngine) {
+    public FightManager(JavaPlugin plugin, ConfigManager configManager, CombatCache combatCache, ScoringEngine scoringEngine, PersistenceManager persistenceManager) {
         this.plugin = plugin;
         this.configManager = configManager;
         this.combatCache = combatCache;
         this.scoringEngine = scoringEngine;
-        plugin.getServer().getPluginManager().registerEvents(this, plugin);  // Register self for join/respawn
+        this.persistenceManager = persistenceManager;
+        plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
     public Set<UUID> getTeam1Players() {
-        return team1Players;
+        return Collections.unmodifiableSet(team1Players);
     }
 
     public Set<UUID> getTeam2Players() {
-        return team2Players;
+        return Collections.unmodifiableSet(team2Players);
     }
 
     public void addToTeam1(Player player) {
@@ -79,7 +80,7 @@ public class FightManager implements Listener {
 
     public void startFight() {
         if (!configManager.isFightModeEnabled() || team1Players.isEmpty() || team2Players.isEmpty()) {
-            plugin.getLogger().warning("Cannot start fight: Fight mode disabled or teams empty.");
+            plugin.getLogger().warning("Cannot start fight: Disabled or empty teams.");
             return;
         }
         currentSessionId = UUID.randomUUID();
@@ -87,7 +88,7 @@ public class FightManager implements Listener {
         fightEndTime = System.currentTimeMillis() + (durationSeconds * 1000L);
 
         bossBar = Bukkit.createBossBar("FIGHT starting...", BarColor.RED, BarStyle.SOLID);
-        updateBossBarPlayers();  // Add to participants only
+        updateBossBarPlayers();
 
         fightTask = new BukkitRunnable() {
             @Override
@@ -108,20 +109,21 @@ public class FightManager implements Listener {
                 bossBar.setProgress(Math.min(1.0, remainingMs / (durationSeconds * 1000.0)));
             }
         };
-        fightTask.runTaskTimer(plugin, 0L, 20L);  // Tick every second
+        fightTask.runTaskTimer(plugin, 0L, 20L);
+    }
+
+    private String getPlayerNamesShort(Set<UUID> uuids) {
+        return uuids.stream().map(Bukkit::getPlayer).filter(Objects::nonNull).map(Player::getName).limit(3).collect(Collectors.joining(", "));
     }
 
     private void updateBossBarPlayers() {
         if (bossBar == null) return;
-        bossBar.removeAll();  // Clear first
-        Set<UUID> allParticipants = new HashSet<>();
-        allParticipants.addAll(team1Players);
-        allParticipants.addAll(team2Players);
-        for (UUID uuid : allParticipants) {
+        bossBar.removeAll();
+        Set<UUID> participants = new HashSet<>(team1Players);
+        participants.addAll(team2Players);
+        for (UUID uuid : participants) {
             Player p = Bukkit.getPlayer(uuid);
-            if (p != null && p.isOnline()) {
-                bossBar.addPlayer(p);
-            }
+            if (p != null) bossBar.addPlayer(p);
         }
     }
 
@@ -139,17 +141,8 @@ public class FightManager implements Listener {
         }
     }
 
-    private boolean isParticipant(UUID uuid) {
+    public boolean isParticipant(UUID uuid) {
         return team1Players.contains(uuid) || team2Players.contains(uuid);
-    }
-
-    private String getPlayerNamesShort(Set<UUID> uuids) {
-        return uuids.stream()
-                .map(Bukkit::getPlayer)
-                .filter(Objects::nonNull)
-                .map(Player::getName)
-                .limit(3)
-                .collect(Collectors.joining(", "));
     }
 
     public void endCurrentFight() {
@@ -184,18 +177,29 @@ public class FightManager implements Listener {
 
         Bukkit.broadcastMessage(winnerMsg + " §fScores: T1 " + finalScores.team1Score() + " T2 " + finalScores.team2Score());
 
+        // Update wins/losses
+        for (UUID winner : winners) {
+            WinsLosses current = persistenceManager.getWinsLosses(winner);
+            persistenceManager.updateWinsLosses(winner, current.incrementWins());
+        }
+        for (UUID loser : losers) {
+            WinsLosses current = persistenceManager.getWinsLosses(loser);
+            persistenceManager.updateWinsLosses(loser, current.incrementLosses());
+        }
+
+        // Steal loot
         List<UUID> winnerList = new ArrayList<>(winners);
         for (UUID loserUuid : losers) {
             Player loserP = Bukkit.getPlayer(loserUuid);
             if (loserP == null) continue;
-            ItemStack stolenItem = findRandomHighValueItem(loserP);
-            if (stolenItem != null) {
-                loserP.getInventory().remove(stolenItem.clone());  // Remove one
-                UUID winnerUuid = winnerList.get((int) (Math.random() * winnerList.size()));
-                Player winnerP = Bukkit.getPlayer(winnerUuid);
+            ItemStack stolen = findRandomHighValueItem(loserP);
+            if (stolen != null) {
+                loserP.getInventory().remove(stolen.clone());
+                UUID randWinner = winnerList.get((int) (Math.random() * winnerList.size()));
+                Player winnerP = Bukkit.getPlayer(randWinner);
                 if (winnerP != null) {
-                    winnerP.getInventory().addItem(stolenItem);
-                    winnerP.sendMessage("§aStolen loot: §b" + stolenItem.getType().name());
+                    winnerP.getInventory().addItem(stolen);
+                    winnerP.sendMessage("§aStolen: §b" + stolen.getType().name());
                 }
             }
         }
@@ -204,14 +208,10 @@ public class FightManager implements Listener {
     }
 
     private ItemStack findRandomHighValueItem(Player player) {
-        ItemStack[] contents = player.getInventory().getContents();
-        List<ItemStack> highValueItems = new ArrayList<>();
-        for (ItemStack item : contents) {
-            if (item != null && configManager.isHighValueMaterial(item.getType().name())) {
-                highValueItems.add(item);
-            }
-        }
-        return highValueItems.isEmpty() ? null : highValueItems.get((int) (Math.random() * highValueItems.size())).clone();
+        List<ItemStack> highValue = Arrays.stream(player.getInventory().getContents())
+                .filter(item -> item != null && configManager.isHighValueMaterial(item.getType().name()))
+                .toList();
+        return highValue.isEmpty() ? null : highValue.get((int) (Math.random() * highValue.size())).clone();
     }
 
     private void clearSession() {

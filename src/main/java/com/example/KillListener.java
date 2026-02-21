@@ -1,7 +1,6 @@
-// Update to src/main/java/com/example/KillListener.java (add weapon null-check, consistent with HitListener)
+// Update src/main/java/com/example/KillListener.java (setKeepInventory for fight participants)
 package com.example;
 
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -12,8 +11,7 @@ import org.bukkit.inventory.ItemStack;
 import java.util.UUID;
 
 /**
- * Captures PvP kills: Logs as fatal record with killer's held weapon, death loc, armor at death.
- * Associates with active fight session if any.
+ * PvP kills: Records fatal hit; sets keepInventory for fight participants.
  */
 public class KillListener implements Listener {
     private final CombatCache combatCache;
@@ -28,19 +26,24 @@ public class KillListener implements Listener {
 
     @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
-        if (!configManager.isCombatTrackingEnabled()) return;
         Player victim = event.getEntity();
+
+        // Player-specific keepInventory for fight participants
+        if (fightManager.getCurrentSessionId() != null && fightManager.isParticipant(victim.getUniqueId())) {
+            event.setKeepInventory(true);
+            event.getDrops().clear();  // Ensure no drops
+        }
+
+        if (!configManager.isCombatTrackingEnabled()) return;
         Player killer = victim.getKiller();
-        if (killer == null || killer.equals(victim)) return;  // Ignore non-PvP or suicide
+        if (killer == null || killer.equals(victim)) return;
 
         ItemStack weaponStack = killer.getInventory().getItemInMainHand();
         Material weapon = weaponStack.getType() == Material.AIR ? Material.AIR : weaponStack.getType();
 
-        Location hitLocation = victim.getLocation().clone();
-        String hitBodyPart = "torso";  // Default for kills (no precise data)
-
-        double damage = 999.0;  // Placeholder for lethal damage
-        boolean wasVictimBlocking = false;  // Kills bypass blocks typically
+        String hitBodyPart = "torso";
+        double damage = 999.0;
+        boolean wasVictimBlocking = false;
         int victimArmorTier = ScoringEngine.calculateAverageArmorTier(victim);
 
         UUID fightSessionId = fightManager.getCurrentSessionId();
@@ -48,7 +51,7 @@ public class KillListener implements Listener {
         CombatRecord killRecord = new CombatRecord(
                 killer.getUniqueId(), killer.getName(),
                 victim.getUniqueId(), victim.getName(),
-                weapon, hitBodyPart, hitLocation, damage, true, wasVictimBlocking, victimArmorTier, fightSessionId,
+                weapon, hitBodyPart, victim.getLocation().clone(), damage, true, wasVictimBlocking, victimArmorTier, fightSessionId,
                 System.currentTimeMillis()
         );
 

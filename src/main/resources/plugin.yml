@@ -1,4 +1,4 @@
-# Update to src/main/resources/plugin.yml (add list to fight command description)
+# Update src/main/resources/plugin.yml (add delete to combat command)
 name: PlayerLocs
 version: '${project.version}'
 main: com.example.PlayerLocs
@@ -14,8 +14,8 @@ commands:
     usage: /fight <team1|team2|start|end|clear|scores|status|reload|toggle|list>
     permission: fight.use
   combat:
-    description: Lookup combat data
-    usage: /combat lookup <player-or-uuid> [limit]
+    description: Lookup/delete combat data
+    usage: /combat <lookup> <player-or-uuid> [recent|full] [limit] | /combat <delete> <player-or-uuid|all> <timespan e.g. 5d>
     permission: combat.use
 permissions:
   playerlocs.use:
@@ -25,5 +25,5 @@ permissions:
     description: Use Fight mode (except list)
     default: op
   combat.use:
-    description: Use combat lookup
+    description: Use combat lookup/delete
     default: op
