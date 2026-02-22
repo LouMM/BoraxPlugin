@@ -97,7 +97,7 @@ public class HitListener implements Listener {
                 fightManager.addToTeam1(attacker);
                 fightManager.addToTeam2(victim);
                 fightManager.startFight();
-                org.bukkit.Bukkit.broadcastMessage(org.bukkit.ChatColor.RED + "⚔ Auto-Fight started between " + attacker.getName() + " and " + victim.getName() + "!");
+                fightManager.broadcastFightMessage(org.bukkit.ChatColor.RED + "⚔ Auto-Fight started between " + attacker.getName() + " and " + victim.getName() + "!");
             } else {
                 // Fight already active, add them if not participating
                 List<String> addedNames = new ArrayList<>();
@@ -112,7 +112,7 @@ public class HitListener implements Listener {
                     addedNames.add(victim.getName());
                 }
                 if (!addedNames.isEmpty()) {
-                    org.bukkit.Bukkit.broadcastMessage(org.bukkit.ChatColor.RED + "⚔ " + String.join(" and ", addedNames) + " joined the ongoing fight!");
+                    fightManager.broadcastFightMessage(org.bukkit.ChatColor.RED + "⚔ " + String.join(" and ", addedNames) + " joined the ongoing fight!");
                 }
             }
         }

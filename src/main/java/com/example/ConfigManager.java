@@ -47,6 +47,22 @@ public class ConfigManager {
         return plugin.getConfig().getInt("autoFight.timeWindowSeconds", 10);
     }
 
+    public String getFightPenaltyMode() {
+        return plugin.getConfig().getString("fight.penaltyMode", "STEAL").toUpperCase();
+    }
+
+    public boolean isFightBroadcastEnabled() {
+        return plugin.getConfig().getBoolean("fight.broadcast", true);
+    }
+
+    public boolean isKeepInventoryDuringFightEnabled() {
+        return plugin.getConfig().getBoolean("fight.KeepInventoryDuringFight", true);
+    }
+
+    public boolean isKeepInventoryFightEndEnabled() {
+        return plugin.getConfig().getBoolean("fight.KeepInventoryFightEnd", false);
+    }
+
     // Scoring heuristics
     public double getHitDamageMultiplier() {
         return plugin.getConfig().getDouble("scoring.hitDamageMultiplier", 2.0);

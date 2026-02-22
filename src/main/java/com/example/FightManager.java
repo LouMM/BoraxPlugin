@@ -2,6 +2,8 @@
 package com.example;
 
 import org.bukkit.Bukkit;
+import org.bukkit.block.Block;
+import org.bukkit.block.Chest;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
@@ -39,6 +41,7 @@ public class FightManager implements Listener {
     private BossBar bossBar;
     private BukkitRunnable fightTask;
     private long fightEndTime;
+    private boolean applyingDeathPenalty = false;
 
     private Team team1Scoreboard;
     private Team team2Scoreboard;
@@ -90,13 +93,11 @@ public class FightManager implements Listener {
     }
 
     public void clearTeams() {
-        for (UUID uuid : team1Players) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null) team1Scoreboard.removeEntry(p.getName());
+        for (String entry : new ArrayList<>(team1Scoreboard.getEntries())) {
+            team1Scoreboard.removeEntry(entry);
         }
-        for (UUID uuid : team2Players) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null) team2Scoreboard.removeEntry(p.getName());
+        for (String entry : new ArrayList<>(team2Scoreboard.getEntries())) {
+            team2Scoreboard.removeEntry(entry);
         }
         team1Players.clear();
         team2Players.clear();
@@ -104,6 +105,10 @@ public class FightManager implements Listener {
 
     public UUID getCurrentSessionId() {
         return currentSessionId;
+    }
+
+    public boolean isApplyingDeathPenalty() {
+        return applyingDeathPenalty;
     }
 
     public void startFight() {
@@ -117,6 +122,8 @@ public class FightManager implements Listener {
 
         bossBar = Bukkit.createBossBar("FIGHT starting...", BarColor.RED, BarStyle.SOLID);
         updateBossBarPlayers();
+        
+        broadcastFightMessage("§c⚔ A fight has started! ⚔");
 
         fightTask = new BukkitRunnable() {
             @Override
@@ -144,25 +151,56 @@ public class FightManager implements Listener {
         return uuids.stream().map(Bukkit::getPlayer).filter(Objects::nonNull).map(Player::getName).limit(3).collect(Collectors.joining(", "));
     }
 
-    private void updateBossBarPlayers() {
+    public void broadcastFightMessage(String msg) {
+        if (configManager.isFightBroadcastEnabled()) {
+            Bukkit.broadcastMessage(msg);
+        } else {
+            plugin.getLogger().info(org.bukkit.ChatColor.stripColor(msg));
+            for (UUID uuid : team1Players) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null) p.sendMessage(msg);
+            }
+            for (UUID uuid : team2Players) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null) p.sendMessage(msg);
+            }
+        }
+    }
+
+    public void updateBossBarPlayers() {
         if (bossBar == null) return;
         bossBar.removeAll();
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            bossBar.addPlayer(p);
+        if (configManager.isFightBroadcastEnabled()) {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                bossBar.addPlayer(p);
+            }
+        } else {
+            for (UUID uuid : team1Players) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null) bossBar.addPlayer(p);
+            }
+            for (UUID uuid : team2Players) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null) bossBar.addPlayer(p);
+            }
         }
     }
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         if (bossBar != null) {
-            bossBar.addPlayer(event.getPlayer());
+            if (configManager.isFightBroadcastEnabled() || isParticipant(event.getPlayer().getUniqueId())) {
+                bossBar.addPlayer(event.getPlayer());
+            }
         }
     }
 
     @EventHandler
     public void onPlayerRespawn(PlayerRespawnEvent event) {
         if (bossBar != null) {
-            bossBar.addPlayer(event.getPlayer());
+            if (configManager.isFightBroadcastEnabled() || isParticipant(event.getPlayer().getUniqueId())) {
+                bossBar.addPlayer(event.getPlayer());
+            }
         }
     }
 
@@ -195,14 +233,14 @@ public class FightManager implements Listener {
             winnerMsg = "§aTeam2 wins!";
         } else {
             winnerMsg = "§eTie game!";
-            clearSession();
             String messageText = winnerMsg + " §fScores: T1 " + finalScores.team1Score() + " T2 " + finalScores.team2Score();
-            Bukkit.getServer().getOnlinePlayers().forEach(p -> p.sendMessage(messageText));
+            broadcastFightMessage(messageText);
+            clearSession();
             return;
         }
 
         String messageText = winnerMsg + " §fScores: T1 " + finalScores.team1Score() + " T2 " + finalScores.team2Score();
-        Bukkit.getServer().getOnlinePlayers().forEach(p -> p.sendMessage(messageText));
+        broadcastFightMessage(messageText);
 
         // Update wins/losses
         for (UUID winner : winners) {
@@ -214,26 +252,57 @@ public class FightManager implements Listener {
             persistenceManager.updateWinsLosses(loser, current.incrementLosses());
         }
 
-        // --- UPDATED STEAL LOOT LOGIC ---
-        for (UUID loserUuid : losers) {
-            Player loserP = Bukkit.getPlayer(loserUuid);
-            if (loserP == null) continue;
+        String penaltyMode = configManager.getFightPenaltyMode();
 
-            ItemStack stolen = findRandomHighValueItem(loserP);
-            if (stolen != null) {
-                // Restrict theft to 1 item so we don't duplicate a stack of 64 to everyone
-                stolen.setAmount(1);
+        if ("DEATH".equalsIgnoreCase(penaltyMode)) {
+            applyingDeathPenalty = true;
+            try {
+                for (UUID loserUuid : losers) {
+                    Player loserP = Bukkit.getPlayer(loserUuid);
+                    if (loserP != null) {
+                        loserP.setHealth(0);
+                    }
+                }
+            } finally {
+                applyingDeathPenalty = false;
+            }
+        } else if ("STEAL".equalsIgnoreCase(penaltyMode)) {
+            // --- UPDATED STEAL LOOT LOGIC ---
+            for (UUID loserUuid : losers) {
+                Player loserP = Bukkit.getPlayer(loserUuid);
+                if (loserP == null) continue;
 
-                // Safely remove exactly 1 of that item from the loser
-                loserP.getInventory().removeItem(stolen);
-                loserP.sendMessage("§cYou lost a §b" + stolen.getType().name() + " §cto the winning team!");
+                ItemStack stolen = findRandomHighValueItem(loserP);
+                if (stolen != null) {
+                    // Restrict theft to 1 item so we don't duplicate a stack of 64 to everyone
+                    stolen.setAmount(1);
 
-                // Give a copy of that 1 item to EVERY player on the winning team
-                for (UUID winnerUuid : winners) {
-                    Player winnerP = Bukkit.getPlayer(winnerUuid);
-                    if (winnerP != null) {
-                        winnerP.getInventory().addItem(stolen.clone());
-                        winnerP.sendMessage("§aLoot Share! You received a stolen §b" + stolen.getType().name() + " §afrom " + loserP.getName());
+                    // Safely remove exactly 1 of that item from the loser
+                    loserP.getInventory().removeItem(stolen);
+                    loserP.sendMessage("§cYou lost a §b" + stolen.getType().name() + " §cto the winning team!");
+
+                    // Give a copy of that 1 item to EVERY player on the winning team
+                    for (UUID winnerUuid : winners) {
+                        Player winnerP = Bukkit.getPlayer(winnerUuid);
+                        if (winnerP != null) {
+                            HashMap<Integer, ItemStack> leftovers = winnerP.getInventory().addItem(stolen.clone());
+                            if (!leftovers.isEmpty()) {
+                                // Inventory full, create a chest in front of them
+                                Block block = winnerP.getLocation().add(winnerP.getLocation().getDirection().multiply(1.5)).getBlock();
+                                block.setType(org.bukkit.Material.CHEST);
+                                if (block.getState() instanceof org.bukkit.block.Chest chest) {
+                                    chest.getInventory().addItem(leftovers.values().toArray(new ItemStack[0]));
+                                    chest.update();
+                                    winnerP.sendMessage("§aLoot Share! Your inventory was full, so a chest was placed in front of you with a stolen §b" + stolen.getType().name() + " §afrom " + loserP.getName());
+                                } else {
+                                    // Fallback if chest placement fails (e.g. protected region)
+                                    winnerP.getWorld().dropItemNaturally(winnerP.getLocation(), leftovers.values().iterator().next());
+                                    winnerP.sendMessage("§aLoot Share! Your inventory was full, so a stolen §b" + stolen.getType().name() + " §afrom " + loserP.getName() + " §awas dropped at your feet.");
+                                }
+                            } else {
+                                winnerP.sendMessage("§aLoot Share! You received a stolen §b" + stolen.getType().name() + " §afrom " + loserP.getName());
+                            }
+                        }
                     }
                 }
             }

@@ -28,12 +28,14 @@ public class CombatCache {
     public List<CombatRecord> getRecentHitsByAttacker(UUID attackerUUID, int limit) {
         Deque<CombatRecord> records = attackerToRecords.get(attackerUUID);
         if (records == null) return List.of();
+        if (limit < 0) limit = Integer.MAX_VALUE;
         return new ArrayList<>(records).stream().limit(limit).collect(Collectors.toList());
     }
 
     public List<CombatRecord> getRecordsInvolvingPlayer(UUID playerUUID, int limit) {
+        if (limit < 0) limit = Integer.MAX_VALUE;
         List<CombatRecord> allRecords = new ArrayList<>();
-        allRecords.addAll(getRecentHitsByAttacker(playerUUID, limit * 2));
+        allRecords.addAll(getRecentHitsByAttacker(playerUUID, limit == Integer.MAX_VALUE ? Integer.MAX_VALUE : limit * 2));
         for (var entry : attackerToRecords.entrySet()) {
             for (CombatRecord record : entry.getValue()) {
                 if (record.victimUUID().equals(playerUUID)) {

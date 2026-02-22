@@ -29,9 +29,20 @@ public class KillListener implements Listener {
         Player victim = event.getEntity();
 
         // Player-specific keepInventory for fight participants
-        if (fightManager.getCurrentSessionId() != null && fightManager.isParticipant(victim.getUniqueId())) {
-            event.setKeepInventory(true);
-            event.getDrops().clear();  // Ensure no drops
+        if (fightManager.isParticipant(victim.getUniqueId())) {
+            if (fightManager.isApplyingDeathPenalty()) {
+                if (configManager.isKeepInventoryFightEndEnabled()) {
+                    event.setKeepInventory(true);
+                    event.getDrops().clear();
+                } else {
+                    event.setKeepInventory(false);
+                }
+            } else if (fightManager.getCurrentSessionId() != null) {
+                if (configManager.isKeepInventoryDuringFightEnabled()) {
+                    event.setKeepInventory(true);
+                    event.getDrops().clear();  // Ensure no drops
+                }
+            }
         }
 
         if (!configManager.isCombatTrackingEnabled()) return;

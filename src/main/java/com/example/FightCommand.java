@@ -32,7 +32,7 @@ public class FightCommand implements CommandExecutor {
     @Override
     public boolean onCommand(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String[] args) {
         if (args.length == 0) {
-            sender.sendMessage("§e/fight <team1|team2|start|end|clear|scores|status|reload|toggle [combat|fight]|list>");
+            sender.sendMessage("§e/fight <team1|team2|start|end|clear|scores|status|reload|toggle [combat|fight]|list|config>");
             return true;
         }
         String subCmd = args[0].toLowerCase();
@@ -91,6 +91,40 @@ public class FightCommand implements CommandExecutor {
                 plugin.saveConfig();
                 configManager.reload();
                 sender.sendMessage("§e" + feature + " §a" + (enabled ? "enabled" : "disabled"));
+            }
+            case "config" -> {
+                if (args.length < 3) {
+                    sender.sendMessage("§e/fight config <setting> <value>");
+                    return true;
+                }
+                String setting = args[1];
+                String valueStr = args[2];
+                try {
+                    if (setting.equalsIgnoreCase("fightDefaultDurationSeconds") || setting.equalsIgnoreCase("escrowTimeoutSeconds")) {
+                        plugin.getConfig().set(setting, Long.parseLong(valueStr));
+                    } else if (setting.equalsIgnoreCase("autoFight.hitCount") || setting.equalsIgnoreCase("autoFight.timeWindowSeconds")) {
+                        plugin.getConfig().set(setting, Integer.parseInt(valueStr));
+                    } else if (setting.equalsIgnoreCase("fight.penaltyMode")) {
+                        plugin.getConfig().set(setting, valueStr.toUpperCase());
+                    } else if (setting.equalsIgnoreCase("fight.broadcast")) {
+                        plugin.getConfig().set(setting, Boolean.parseBoolean(valueStr));
+                    } else if (setting.equalsIgnoreCase("fight.KeepInventoryDuringFight") || setting.equalsIgnoreCase("fight.KeepInventoryFightEnd")) {
+                        plugin.getConfig().set(setting, Boolean.parseBoolean(valueStr));
+                    } else {
+                        sender.sendMessage("§cUnknown or unsupported setting: " + setting);
+                        return true;
+                    }
+                    plugin.saveConfig();
+                    configManager.reload();
+                    
+                    if (setting.equalsIgnoreCase("fight.broadcast")) {
+                        fightManager.updateBossBarPlayers();
+                    }
+                    
+                    sender.sendMessage("§aSuccessfully updated " + setting + " to " + valueStr);
+                } catch (NumberFormatException e) {
+                    sender.sendMessage("§cInvalid number format for value: " + valueStr);
+                }
             }
             default -> sender.sendMessage("§cUnknown subcommand: " + subCmd);
         }
