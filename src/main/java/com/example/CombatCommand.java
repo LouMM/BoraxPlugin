@@ -38,52 +38,50 @@ public class CombatCommand implements CommandExecutor {
             return true;
         }
         if (args.length < 1) {
-            sender.sendMessage(Component.text("/combat lookup <player/uuid> [recent|full] [limit=10] | delete <player/uuid|all> <Xd>").color(NamedTextColor.YELLOW));
+            sender.sendMessage(Component.text("/combat lookup <player/uuid|all> [recent|full] [limit=10] | delete <player/uuid|all> <Xd>").color(NamedTextColor.YELLOW));
             return true;
         }
         String subCmd = args[0].toLowerCase();
         if (subCmd.equals("lookup")) {
             if (args.length < 2) {
-                sender.sendMessage(Component.text("Usage: lookup <player/uuid> [recent|full] [limit]").color(NamedTextColor.YELLOW));
+                sender.sendMessage(Component.text("Usage: lookup <player/uuid|all> [recent|full] [limit]").color(NamedTextColor.YELLOW));
                 return true;
             }
+            
+            String targetArg = args[1].toLowerCase();
+            String mode = args.length > 2 ? args[2].toLowerCase() : "recent";
+            int limit = args.length > 3 ? Integer.parseInt(args[3]) : 10;
+
+            if (targetArg.equals("all")) {
+                if (!sender.isOp()) {
+                    sender.sendMessage(Component.text("Only OPs can lookup all players.").color(NamedTextColor.RED));
+                    return true;
+                }
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    sender.sendMessage(Component.text("--------------------------------------------------").color(NamedTextColor.DARK_GRAY));
+                    printPlayerCombat(sender, p.getUniqueId(), p.getName(), mode, limit);
+                }
+                sender.sendMessage(Component.text("--------------------------------------------------").color(NamedTextColor.DARK_GRAY));
+                return true;
+            }
+
             UUID targetUuid = resolveUuid(args[1]);
             if (targetUuid == null) {
                 sender.sendMessage(Component.text("Player/UUID not found: " + args[1]).color(NamedTextColor.RED));
                 return true;
             }
-            String mode = args.length > 2 ? args[2].toLowerCase() : "recent";
-            int limit = args.length > 3 ? Integer.parseInt(args[3]) : 10;
 
-            List<CombatRecord> records;
-            if (mode.equals("full")) {
-                records = persistenceManager.getFullRecordsInvolvingPlayer(targetUuid);
-                records.addAll(combatCache.getRecordsInvolvingPlayer(targetUuid, Integer.MAX_VALUE));
-                records.sort(Comparator.comparingLong(CombatRecord::timestamp).reversed());
-                records = records.stream().distinct().limit(limit).toList();
-            } else {
-                records = combatCache.getRecordsInvolvingPlayer(targetUuid, limit);
-            }
-
-            sender.sendMessage(Component.text("Combat for " + args[1] + " (" + mode + "):").color(NamedTextColor.GOLD));
-            if (records.isEmpty()) {
-                sender.sendMessage(Component.text("No records.").color(NamedTextColor.GRAY));
+            if (!sender.isOp() && sender instanceof Player p && !p.getUniqueId().equals(targetUuid)) {
+                sender.sendMessage(Component.text("You can only lookup your own combat records.").color(NamedTextColor.RED));
                 return true;
             }
-            for (CombatRecord r : records) {
-                boolean outgoing = r.attackerUUID().equals(targetUuid);
-                Component prefix = outgoing ? Component.text("Hit ").color(NamedTextColor.GREEN) : Component.text("Hit by ").color(NamedTextColor.RED);
-                String other = outgoing ? r.victimName() : r.attackerName();
-                Component kill = r.isFatalKill() ? Component.text(" [KILL]").color(NamedTextColor.DARK_RED) : Component.empty();
-                Component msg = prefix.append(Component.text(other).color(NamedTextColor.YELLOW))
-                        .append(Component.text(" (" + r.damageAmount() + "dmg").color(NamedTextColor.GREEN))
-                        .append(kill)
-                        .append(Component.text(") " + r.weaponMaterial().name()).color(NamedTextColor.GREEN))
-                        .append(Component.text(" at " + r.hitLocation().getBlockX() + "," + r.hitLocation().getBlockY() + "," + r.hitLocation().getBlockZ()).color(NamedTextColor.RED))
-                        .append(Component.text(" (" + r.hitBodyPart() + ")").color(NamedTextColor.RED));
-                sender.sendMessage(msg);
-            }
+
+            printPlayerCombat(sender, targetUuid, args[1], mode, limit);
         } else if (subCmd.equals("delete")) {
+            if (!sender.isOp()) {
+                sender.sendMessage(Component.text("Only OPs can delete combat records.").color(NamedTextColor.RED));
+                return true;
+            }
             if (args.length < 3) {
                 sender.sendMessage(Component.text("Usage: delete <player/uuid|all> <Xd e.g. 5d>").color(NamedTextColor.YELLOW));
                 return true;
@@ -112,6 +110,48 @@ public class CombatCommand implements CommandExecutor {
             sender.sendMessage(Component.text("Unknown: " + subCmd).color(NamedTextColor.RED));
         }
         return true;
+    }
+
+    private void printPlayerCombat(CommandSender sender, UUID targetUuid, String targetName, String mode, int limit) {
+        List<CombatRecord> records;
+        if (mode.equals("full")) {
+            records = persistenceManager.getFullRecordsInvolvingPlayer(targetUuid);
+            records.addAll(combatCache.getRecordsInvolvingPlayer(targetUuid, Integer.MAX_VALUE));
+            records.sort(Comparator.comparingLong(CombatRecord::timestamp).reversed());
+            records = records.stream().distinct().limit(limit).toList();
+        } else {
+            records = combatCache.getRecordsInvolvingPlayer(targetUuid, limit);
+        }
+
+        // Avatar/Header formatting
+        WinsLosses wl = persistenceManager.getWinsLosses(targetUuid);
+        long fightKills = records.stream().filter(r -> r.isFatalKill() && r.attackerUUID().equals(targetUuid) && r.fightSessionId() != null).count();
+        long nonFightKills = records.stream().filter(r -> r.isFatalKill() && r.attackerUUID().equals(targetUuid) && r.fightSessionId() == null).count();
+        String icon = nonFightKills > fightKills ? "☠" : "★";
+
+        Component header = Component.text("👤 " + targetName, NamedTextColor.GREEN)
+                .append(Component.text(" | W:" + wl.wins() + " L:" + wl.losses(), NamedTextColor.AQUA))
+                .append(Component.text(" | " + icon, NamedTextColor.RED))
+                .append(Component.text(" (" + mode + "):", NamedTextColor.GOLD));
+        sender.sendMessage(header);
+
+        if (records.isEmpty()) {
+            sender.sendMessage(Component.text("  No records.").color(NamedTextColor.GRAY));
+            return;
+        }
+        for (CombatRecord r : records) {
+            boolean outgoing = r.attackerUUID().equals(targetUuid);
+            Component prefix = outgoing ? Component.text("  Hit ").color(NamedTextColor.GREEN) : Component.text("  Hit by ").color(NamedTextColor.RED);
+            String other = outgoing ? r.victimName() : r.attackerName();
+            Component kill = r.isFatalKill() ? Component.text(" [KILL]").color(NamedTextColor.DARK_RED) : Component.empty();
+            Component msg = prefix.append(Component.text(other).color(NamedTextColor.YELLOW))
+                    .append(Component.text(" (" + String.format("%.1f", r.damageAmount()) + "dmg").color(NamedTextColor.GREEN))
+                    .append(kill)
+                    .append(Component.text(") " + r.weaponMaterial().name()).color(NamedTextColor.GREEN))
+                    .append(Component.text(" at " + r.hitLocation().getBlockX() + "," + r.hitLocation().getBlockY() + "," + r.hitLocation().getBlockZ()).color(NamedTextColor.RED))
+                    .append(Component.text(" (" + r.hitBodyPart() + ")").color(NamedTextColor.RED));
+            sender.sendMessage(msg);
+        }
     }
 
     private UUID resolveUuid(String input) {

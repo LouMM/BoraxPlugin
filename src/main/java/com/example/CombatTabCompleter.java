@@ -17,13 +17,21 @@ public class CombatTabCompleter implements TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
-            completions.addAll(List.of("lookup", "delete"));
+            completions.addAll(List.of("lookup"));
+            if (sender.isOp()) {
+                completions.add("delete");
+            }
         } else if (args.length == 2) {
             if (args[0].equalsIgnoreCase("lookup")) {
-                for (Player p : sender.getServer().getOnlinePlayers()) {
+                if (sender.isOp()) {
+                    completions.add("all");
+                    for (Player p : sender.getServer().getOnlinePlayers()) {
+                        completions.add(p.getName());
+                    }
+                } else if (sender instanceof Player p) {
                     completions.add(p.getName());
                 }
-            } else if (args[0].equalsIgnoreCase("delete")) {
+            } else if (args[0].equalsIgnoreCase("delete") && sender.isOp()) {
                 completions.addAll(List.of("all"));
                 for (Player p : sender.getServer().getOnlinePlayers()) {
                     completions.add(p.getName());

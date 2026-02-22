@@ -35,7 +35,7 @@ permissions:
   fight.use:
     default: op
   combat.use:
-    default: op
+    default: true
   borax.use:
     default: true  # Open to all
   inventory.use:

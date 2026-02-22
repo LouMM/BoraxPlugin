@@ -168,10 +168,10 @@ public class EscrowManager implements Listener {
             }
 
             if (record.released) {
-                restoreItems(player, record);
+                tryRestoreItems(player, record);
             } else if (System.currentTimeMillis() >= record.expiryTime) {
                 record.released = true;
-                restoreItems(player, record);
+                tryRestoreItems(player, record);
             } else {
                 long remaining = (record.expiryTime - System.currentTimeMillis()) / 1000;
                 player.sendMessage(ChatColor.RED + "Your items are in escrow for combat logging!");
@@ -193,7 +193,7 @@ public class EscrowManager implements Listener {
                 @Override
                 public void run() {
                     if (player.isOnline()) {
-                        restoreItems(player, record);
+                        tryRestoreItems(player, record);
                     }
                 }
             }.runTaskLater(plugin, 10L);
@@ -212,12 +212,38 @@ public class EscrowManager implements Listener {
                     if (player.isDead()) {
                         player.sendMessage(ChatColor.YELLOW + "Your escrowed items will be returned when you respawn.");
                     } else {
-                        restoreItems(player, record);
+                        tryRestoreItems(player, record);
                     }
                 }
             }
         }
         if (changed) save();
+    }
+
+    private void tryRestoreItems(Player player, EscrowRecord record) {
+        if (player.isDead() || player.getHealth() <= 0) {
+            player.sendMessage(ChatColor.YELLOW + "Your escrowed items will be returned when you respawn.");
+            return;
+        }
+
+        org.bukkit.block.Block block = player.getLocation().getBlock();
+        boolean inLiquid = block.getType() == org.bukkit.Material.WATER || block.getType() == org.bukkit.Material.LAVA;
+        boolean falling = player.getFallDistance() > 2.0f;
+
+        if (inLiquid || falling) {
+            player.sendMessage(ChatColor.YELLOW + "Waiting for a safe location to return your escrowed items...");
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    if (player.isOnline()) {
+                        tryRestoreItems(player, record);
+                    }
+                }
+            }.runTaskLater(plugin, 60L); // Retry in 3 seconds
+            return;
+        }
+
+        restoreItems(player, record);
     }
 
     /**
@@ -227,18 +253,48 @@ public class EscrowManager implements Listener {
     private synchronized void restoreItems(Player player, EscrowRecord record) {
         if (!escrows.containsKey(player.getUniqueId())) return; // Already restored
         
-        // Add items back, dropping any that don't fit
-        HashMap<Integer, ItemStack> leftoverInv = player.getInventory().addItem(record.inventory);
-        for (ItemStack item : leftoverInv.values()) {
-            if (item != null && !item.getType().isAir()) {
-                player.getWorld().dropItemNaturally(player.getLocation(), item);
+        List<ItemStack> leftovers = new ArrayList<>();
+
+        // Restore Inventory (includes armor and offhand)
+        ItemStack[] currentInv = player.getInventory().getContents();
+        for (int i = 0; i < record.inventory.length; i++) {
+            ItemStack item = record.inventory[i];
+            if (item == null || item.getType().isAir()) continue;
+
+            if (i < currentInv.length && (currentInv[i] == null || currentInv[i].getType().isAir())) {
+                player.getInventory().setItem(i, item);
+                currentInv[i] = item; // Update local array to reflect the change
+            } else {
+                leftovers.add(item);
             }
         }
 
-        HashMap<Integer, ItemStack> leftoverEnder = player.getEnderChest().addItem(record.enderChest);
-        for (ItemStack item : leftoverEnder.values()) {
-            if (item != null && !item.getType().isAir()) {
-                player.getWorld().dropItemNaturally(player.getLocation(), item);
+        // Restore Ender Chest
+        ItemStack[] currentEnder = player.getEnderChest().getContents();
+        for (int i = 0; i < record.enderChest.length; i++) {
+            ItemStack item = record.enderChest[i];
+            if (item == null || item.getType().isAir()) continue;
+
+            if (i < currentEnder.length && (currentEnder[i] == null || currentEnder[i].getType().isAir())) {
+                player.getEnderChest().setItem(i, item);
+                currentEnder[i] = item; // Update local array
+            } else {
+                leftovers.add(item);
+            }
+        }
+
+        // Try to add leftovers to inventory
+        if (!leftovers.isEmpty()) {
+            HashMap<Integer, ItemStack> drops = player.getInventory().addItem(leftovers.toArray(new ItemStack[0]));
+            // Try to add remaining to ender chest
+            if (!drops.isEmpty()) {
+                drops = player.getEnderChest().addItem(drops.values().toArray(new ItemStack[0]));
+            }
+            // Drop the rest on the ground
+            for (ItemStack drop : drops.values()) {
+                if (drop != null && !drop.getType().isAir()) {
+                    player.getWorld().dropItemNaturally(player.getLocation(), drop);
+                }
             }
         }
 
@@ -262,7 +318,7 @@ public class EscrowManager implements Listener {
                 player.sendMessage(ChatColor.YELLOW + "Your escrowed items will be returned when you respawn.");
                 save();
             } else {
-                restoreItems(player, record);
+                tryRestoreItems(player, record);
             }
         } else {
             save(); // Will be restored on next join

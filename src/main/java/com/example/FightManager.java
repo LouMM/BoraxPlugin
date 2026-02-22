@@ -13,6 +13,10 @@ import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scoreboard.Scoreboard;
+import org.bukkit.scoreboard.Team;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -36,6 +40,9 @@ public class FightManager implements Listener {
     private BukkitRunnable fightTask;
     private long fightEndTime;
 
+    private Team team1Scoreboard;
+    private Team team2Scoreboard;
+
     public FightManager(JavaPlugin plugin, ConfigManager configManager, CombatCache combatCache, ScoringEngine scoringEngine, PersistenceManager persistenceManager) {
         this.plugin = plugin;
         this.configManager = configManager;
@@ -43,6 +50,15 @@ public class FightManager implements Listener {
         this.scoringEngine = scoringEngine;
         this.persistenceManager = persistenceManager;
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
+
+        Scoreboard scoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
+        team1Scoreboard = scoreboard.getTeam("FightTeam1");
+        if (team1Scoreboard == null) team1Scoreboard = scoreboard.registerNewTeam("FightTeam1");
+        team1Scoreboard.prefix(Component.text("[T1 ⚔] ", NamedTextColor.RED));
+
+        team2Scoreboard = scoreboard.getTeam("FightTeam2");
+        if (team2Scoreboard == null) team2Scoreboard = scoreboard.registerNewTeam("FightTeam2");
+        team2Scoreboard.prefix(Component.text("[T2 ⚔] ", NamedTextColor.BLUE));
     }
 
     public Set<UUID> getTeam1Players() {
@@ -55,21 +71,33 @@ public class FightManager implements Listener {
 
     public void addToTeam1(Player player) {
         team1Players.add(player.getUniqueId());
+        team1Scoreboard.addEntry(player.getName());
     }
 
     public void removeFromTeam1(Player player) {
         team1Players.remove(player.getUniqueId());
+        team1Scoreboard.removeEntry(player.getName());
     }
 
     public void addToTeam2(Player player) {
         team2Players.add(player.getUniqueId());
+        team2Scoreboard.addEntry(player.getName());
     }
 
     public void removeFromTeam2(Player player) {
         team2Players.remove(player.getUniqueId());
+        team2Scoreboard.removeEntry(player.getName());
     }
 
     public void clearTeams() {
+        for (UUID uuid : team1Players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) team1Scoreboard.removeEntry(p.getName());
+        }
+        for (UUID uuid : team2Players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) team2Scoreboard.removeEntry(p.getName());
+        }
         team1Players.clear();
         team2Players.clear();
     }
@@ -119,24 +147,21 @@ public class FightManager implements Listener {
     private void updateBossBarPlayers() {
         if (bossBar == null) return;
         bossBar.removeAll();
-        Set<UUID> participants = new HashSet<>(team1Players);
-        participants.addAll(team2Players);
-        for (UUID uuid : participants) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null) bossBar.addPlayer(p);
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            bossBar.addPlayer(p);
         }
     }
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        if (bossBar != null && isParticipant(event.getPlayer().getUniqueId())) {
+        if (bossBar != null) {
             bossBar.addPlayer(event.getPlayer());
         }
     }
 
     @EventHandler
     public void onPlayerRespawn(PlayerRespawnEvent event) {
-        if (bossBar != null && isParticipant(event.getPlayer().getUniqueId())) {
+        if (bossBar != null) {
             bossBar.addPlayer(event.getPlayer());
         }
     }
@@ -227,8 +252,7 @@ public class FightManager implements Listener {
     private void clearSession() {
         currentSessionId = null;
         fightEndTime = 0;
-        team1Players.clear();
-        team2Players.clear();
+        clearTeams();
     }
 
     public ScorePair getCurrentScores() {
