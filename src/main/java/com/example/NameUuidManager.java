@@ -69,7 +69,6 @@ public class NameUuidManager {
         nameToUuid.put(lowerName, uuid);
     }
 
-    @SuppressWarnings("deprecation")
     public UUID getUuidFromName(String name) {
         // 1. Check our local fast cache first
         UUID localResult = nameToUuid.get(name.toLowerCase());
@@ -77,9 +76,9 @@ public class NameUuidManager {
             return localResult;
         }
 
-        // 2. Fallback to server's internal usercache.json
-        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(name);
-        if (offlinePlayer.hasPlayedBefore() || offlinePlayer.isOnline()) {
+        // 2. Fallback to server's internal usercache.json (non-blocking)
+        OfflinePlayer offlinePlayer = Bukkit.getServer().getOfflinePlayerIfCached(name);
+        if (offlinePlayer != null && (offlinePlayer.hasPlayedBefore() || offlinePlayer.isOnline())) {
             // Add it to our local cache for next time
             addOrUpdate(offlinePlayer.getUniqueId(), offlinePlayer.getName());
             return offlinePlayer.getUniqueId();
@@ -103,5 +102,13 @@ public class NameUuidManager {
         }
 
         return "UnknownPlayer";
+    }
+
+    /**
+     * Get all known player names for tab completion.
+     * @return A set of all known player names.
+     */
+    public java.util.Set<String> getAllKnownNames() {
+        return new java.util.HashSet<>(uuidToName.values());
     }
 }

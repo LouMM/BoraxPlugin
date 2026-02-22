@@ -31,36 +31,40 @@ public class LocationCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("playerlocs.use")) {
-            sender.sendMessage(ChatColor.RED + "No permission!");
-            return true;
-        }
-
-        if (label.equalsIgnoreCase("locs")) {
-            // your original /locs logic here
-            return true;
-        }
-
-        if (args.length < 1) {
-            sender.sendMessage(ChatColor.YELLOW + "Usage: /loc <player/uuid>");
-            return true;
-        }
-
-        String targetStr = args[0];
-        UUID uuid = nameUuidManager.getUuidFromName(targetStr);
-        if (uuid == null) {
-            try { uuid = UUID.fromString(targetStr); }
-            catch (IllegalArgumentException e) {
-                sender.sendMessage(ChatColor.RED + "Player/UUID not found: " + targetStr);
+        try {
+            if (!sender.hasPermission("playerlocs.use")) {
+                sender.sendMessage(ChatColor.RED + "No permission!");
                 return true;
             }
-        }
 
-        Player player = Bukkit.getPlayer(uuid);
-        if (player != null) {
-            sender.sendMessage(ChatColor.GOLD + player.getName() + "'s Location: " + player.getLocation());
-        } else {
-            loadOfflineLocation(sender, uuid);
+            if (args.length < 1) {
+                sender.sendMessage(ChatColor.YELLOW + "Usage: /loc <player/uuid>");
+                return true;
+            }
+
+            String targetStr = args[0];
+            UUID uuid = nameUuidManager.getUuidFromName(targetStr);
+            if (uuid == null) {
+                try { 
+                    uuid = UUID.fromString(targetStr); 
+                } catch (IllegalArgumentException e) {
+                    sender.sendMessage(ChatColor.RED + "Player/UUID not found: " + targetStr);
+                    return true;
+                }
+            }
+
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null) {
+                String locMsg = String.format("%s's Location: %.2f, %.2f, %.2f in %s", 
+                    player.getName(), player.getLocation().getX(), player.getLocation().getY(), player.getLocation().getZ(), player.getLocation().getWorld().getName());
+                sender.sendMessage(ChatColor.GOLD + locMsg);
+                TelemetryLogger.info("API/RCON Location Result: " + locMsg);
+            } else {
+                loadOfflineLocation(sender, uuid);
+            }
+        } catch (Exception e) {
+            TelemetryLogger.error("LocationCommand execution", e);
+            sender.sendMessage(ChatColor.RED + "An error occurred while executing the command.");
         }
         return true;
     }
@@ -68,36 +72,37 @@ public class LocationCommand implements CommandExecutor {
     private void loadOfflineLocation(CommandSender sender, UUID uuid) {
         File playerDataFile = new File(Bukkit.getWorldContainer(), "world/playerdata/" + uuid + ".dat");
         if (!playerDataFile.exists()) {
-            sender.sendMessage(ChatColor.RED + "No data file for " + uuid);
+            String msg = "No data file for " + uuid;
+            sender.sendMessage(ChatColor.RED + msg);
+            TelemetryLogger.warning("API/RCON Location Result: " + msg);
             return;
         }
 
         try {
             CompoundTag nbt = NbtIo.readCompressed(playerDataFile.toPath(), NbtAccounter.unlimitedHeap());
 
-            Optional<ListTag> posOpt = nbt.getList("Pos");
-            if (posOpt.isPresent()) {
-                ListTag posList = posOpt.get();
+            ListTag posList = nbt.getListOrEmpty("Pos");
+            if (!posList.isEmpty() && posList.size() >= 3) {
+                double x_value = posList.getDoubleOr(0, 0.0);
+                double y_value = posList.getDoubleOr(1, 0.0);
+                double z_value = posList.getDoubleOr(2, 0.0);
+                
+                String dimension = nbt.getStringOr("Dimension", "minecraft:overworld");
+                String name = nameUuidManager.getNameFromUuid(uuid);
+                String displayName = name != null ? name : uuid.toString();
 
-                Optional<Double> x = posList.getDouble(0);  // [web:6][web:20]
-                Optional<Double> y = posList.getDouble(1);  // [web:6][web:20]
-                Optional<Double> z = posList.getDouble(2);  // [web:6][web:20]
-                if(x.isPresent() && y.isPresent() && z.isPresent()) {
-                    Double x_value = x.get();
-                    Double y_value = y.get();
-                    Double z_value = z.get();
-                    Optional<String> s =  nbt.getString("Dimension");
-                    if(s.isEmpty()) { return;}
-                    String dimension = s.get();
-                    String name = nameUuidManager.getNameFromUuid(uuid);
-
-                    sender.sendMessage(ChatColor.GOLD + "=== Offline " + (name != null ? name : uuid) + " ===");
-                    sender.sendMessage(ChatColor.YELLOW + "Location: " + String.format("%.2f, %.2f, %.2f", x_value, y_value, z_value));
-                    sender.sendMessage(ChatColor.YELLOW + "Dimension: " + dimension.replace("minecraft:", ""));
-                }
+                String locMsg = String.format("Offline %s Location: %.2f, %.2f, %.2f in %s", 
+                    displayName, x_value, y_value, z_value, dimension.replace("minecraft:", ""));
+                
+                sender.sendMessage(ChatColor.GOLD + locMsg);
+                TelemetryLogger.info("API/RCON Location Result: " + locMsg);
             }
         } catch (IOException e) {
-            sender.sendMessage(ChatColor.RED + "Error reading NBT: " + e.getMessage());
+            TelemetryLogger.error("Reading NBT for offline player " + uuid, e);
+            sender.sendMessage(ChatColor.RED + "Error reading NBT data.");
+        } catch (Exception e) {
+            TelemetryLogger.error("Unexpected error in loadOfflineLocation", e);
+            sender.sendMessage(ChatColor.RED + "An unexpected error occurred.");
         }
     }
 }

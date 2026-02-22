@@ -5,10 +5,6 @@ main: com.example.PlayerLocs
 api-version: '1.21'
 author: You
 commands:
-  locs:
-    description: Send player locations to API
-    usage: /locs
-    permission: playerlocs.use
   loc:
     description: Get specific player location.
     usage: /loc <player/uuid>

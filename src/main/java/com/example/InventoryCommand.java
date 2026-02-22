@@ -116,63 +116,53 @@ public class InventoryCommand implements CommandExecutor {
             JsonArray invArray = new JsonArray();
 
             // ---------- helper to convert vanilla item NBT -> Bukkit ItemStack ----------
+            HolderLookup.Provider registryAccess = ((CraftServer) Bukkit.getServer()).getServer().registryAccess();
             java.util.function.Function<CompoundTag, org.bukkit.inventory.ItemStack> nbtToBukkit =
                     itemNbt -> {
-                        // Vanilla player.dat item layout: id (string), Count (byte), tag (compound), Slot (byte) etc.
-                        String id = String.valueOf(itemNbt.getString("id"));
-                        if (id == null || id.isEmpty()) return null;
-
-                        Optional<Byte> count = itemNbt.getByte("Count");
-                        //if (count <= 0) count = 1;
-
-                        // Turn "minecraft:stone" into a Bukkit Material
-                        Material mat = Material.matchMaterial(id.replace("minecraft:", ""));
-                        if (mat == null || mat.isAir()) return null;
-
-                        Map<String, Object> map = new HashMap<>();
-                        map.put("type", mat.name());
-                        map.put("amount", count);
-
-                        // You can optionally read more from itemNbt.getCompound("tag") and add to map
-
-                        return org.bukkit.inventory.ItemStack.deserialize(map);
+                        try {
+                            com.mojang.serialization.DataResult<net.minecraft.world.item.ItemStack> result = net.minecraft.world.item.ItemStack.OPTIONAL_CODEC.parse(
+                                registryAccess.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE), 
+                                itemNbt
+                            );
+                            
+                            net.minecraft.world.item.ItemStack nmsItem = result.resultOrPartial(err -> {
+                                TelemetryLogger.warning("Partial/Error parsing item NBT: " + err + " | NBT: " + itemNbt.toString());
+                            }).orElse(null);
+                            
+                            if (nmsItem != null && !nmsItem.isEmpty()) {
+                                return CraftItemStack.asBukkitCopy(nmsItem);
+                            }
+                        } catch (Exception e) {
+                            TelemetryLogger.error("Exception parsing item NBT", e);
+                        }
+                        return null;
                     };
 
             // ---------- Main inventory ----------
-            Optional<ListTag> invOpt = nbt.getList("Inventory"); // Optional<ListTag> in your mappings
-            if (invOpt.isPresent()) {
-                ListTag invList = invOpt.get();
+            ListTag invList = nbt.getListOrEmpty("Inventory");
+            for (int i = 0; i < invList.size(); i++) {
+                CompoundTag itemNbt = invList.getCompoundOrEmpty(i);
+                if (itemNbt.isEmpty()) continue;
 
-                for (int i = 0; i < invList.size(); i++) {
-                    Optional<CompoundTag> itemOpt = invList.getCompound(i); // Optional<CompoundTag> in your mappings
-                    if (itemOpt.isEmpty()) continue;
-                    CompoundTag itemNbt = itemOpt.get();
+                org.bukkit.inventory.ItemStack item = nbtToBukkit.apply(itemNbt);
 
-                    org.bukkit.inventory.ItemStack item = nbtToBukkit.apply(itemNbt);
-
-                    if (item != null && !item.getType().isAir()) {
-                        invArray.add(itemToJson(item));
-                        sendPrettyItem(sender, item, false);
-                    }
+                if (item != null && !item.getType().isAir()) {
+                    invArray.add(itemToJson(item));
+                    sendPrettyItem(sender, item, false);
                 }
             }
 
             // ---------- Ender chest ----------
-            Optional<ListTag> enderOpt = nbt.getList("EnderItems");
-            if (enderOpt.isPresent()) {
-                ListTag enderList = enderOpt.get();
+            ListTag enderList = nbt.getListOrEmpty("EnderItems");
+            for (int i = 0; i < enderList.size(); i++) {
+                CompoundTag itemNbt = enderList.getCompoundOrEmpty(i);
+                if (itemNbt.isEmpty()) continue;
 
-                for (int i = 0; i < enderList.size(); i++) {
-                    Optional<CompoundTag> itemOpt = enderList.getCompound(i);
-                    if (itemOpt.isEmpty()) continue;
-                    CompoundTag itemNbt = itemOpt.get();
+                org.bukkit.inventory.ItemStack item = nbtToBukkit.apply(itemNbt);
 
-                    org.bukkit.inventory.ItemStack item = nbtToBukkit.apply(itemNbt);
-
-                    if (item != null && !item.getType().isAir()) {
-                        invArray.add(itemToJson(item, true));
-                        sendPrettyItem(sender, item, true);
-                    }
+                if (item != null && !item.getType().isAir()) {
+                    invArray.add(itemToJson(item, true));
+                    sendPrettyItem(sender, item, true);
                 }
             }
 

@@ -1,3 +1,6 @@
+import java.net.URLClassLoader
+import java.lang.reflect.Modifier
+
 plugins {
     `java-library`
     id("io.papermc.paperweight.userdev") version "2.0.0-beta.19"
@@ -41,6 +44,19 @@ tasks {
 
         filesMatching("plugin.yml") {
             expand(props)
+        }
+    }
+
+    register("printServerMethods") {
+        doLast {
+            val cp = sourceSets["main"].compileClasspath
+            val cl = URLClassLoader(cp.map { it.toURI().toURL() }.toTypedArray())
+            val clazz = cl.loadClass("org.bukkit.Server")
+            clazz.declaredMethods.forEach { m: java.lang.reflect.Method ->
+                if (m.name.contains("OfflinePlayer")) {
+                    println("${m.name}(${m.parameterTypes.joinToString { it.simpleName }}) -> ${m.returnType.simpleName}")
+                }
+            }
         }
     }
 }

@@ -26,6 +26,9 @@ public class PlayerLocs extends JavaPlugin implements Listener {
     public void onEnable() {
         saveDefaultConfig();
 
+        TelemetryLogger.setDebugMode(getConfig().getBoolean("debug", false));
+        TelemetryLogger.info("Initializing PlayerLocs plugin...");
+
         configManager = new ConfigManager(this);
         persistenceManager = new PersistenceManager(this);
         persistenceManager.load();
@@ -35,16 +38,15 @@ public class PlayerLocs extends JavaPlugin implements Listener {
         fightManager = new FightManager(this, configManager, globalCombatCache, scoringEngine, persistenceManager);
         tabListManager = new TabListManager(this, persistenceManager, globalCombatCache);
 
-        Objects.requireNonNull(getCommand("locs")).setExecutor(new LocationCommand(this, nameUuidManager));
         Objects.requireNonNull(getCommand("fight")).setExecutor(new FightCommand(this, fightManager, configManager));
         Objects.requireNonNull(getCommand("fight")).setTabCompleter(new FightTabCompleter());
         Objects.requireNonNull(getCommand("combat")).setExecutor(new CombatCommand(globalCombatCache, configManager, persistenceManager));
         Objects.requireNonNull(getCommand("combat")).setTabCompleter(new CombatTabCompleter());
         Objects.requireNonNull(getCommand("borax")).setExecutor(new BoraxCommand(this));
         Objects.requireNonNull(getCommand("inventory")).setExecutor(new InventoryCommand(this, nameUuidManager));
-        Objects.requireNonNull(getCommand("inventory")).setTabCompleter(new InventoryTabCompleter());
-        Objects.requireNonNull(getCommand("loc")).setExecutor(new LocationCommand(this, nameUuidManager));  // New alias or separate
-        Objects.requireNonNull(getCommand("loc")).setTabCompleter(new LocationTabCompleter());
+        Objects.requireNonNull(getCommand("inventory")).setTabCompleter(new InventoryTabCompleter(nameUuidManager));
+        Objects.requireNonNull(getCommand("loc")).setExecutor(new LocationCommand(this, nameUuidManager));
+        Objects.requireNonNull(getCommand("loc")).setTabCompleter(new LocationTabCompleter(nameUuidManager));
 
         getServer().getPluginManager().registerEvents(new HitListener(globalCombatCache, fightManager, configManager), this);
         getServer().getPluginManager().registerEvents(new KillListener(globalCombatCache, fightManager, configManager), this);

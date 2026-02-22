@@ -25,7 +25,7 @@ public class BoraxCommand implements CommandExecutor {
         }
 
         sender.sendMessage("§aBorax Plugin Commands:");
-        sender.sendMessage("§e/locs §f- " + Objects.requireNonNull(plugin.getCommand("locs")).getDescription() + " §7" + Objects.requireNonNull(plugin.getCommand("locs")).getUsage());
+        sender.sendMessage("§e/loc §f- " + Objects.requireNonNull(plugin.getCommand("loc")).getDescription() + " §7" + Objects.requireNonNull(plugin.getCommand("loc")).getUsage());
         sender.sendMessage("§e/fight §f- " + Objects.requireNonNull(plugin.getCommand("fight")).getDescription() + " §7" + Objects.requireNonNull(plugin.getCommand("fight")).getUsage());
         sender.sendMessage("§e/combat §f- " + Objects.requireNonNull(plugin.getCommand("combat")).getDescription() + " §7" + Objects.requireNonNull(plugin.getCommand("combat")).getUsage());
         sender.sendMessage("§e/inventory §f- " + Objects.requireNonNull(plugin.getCommand("inventory")).getDescription() + " §7" + Objects.requireNonNull(plugin.getCommand("inventory")).getUsage());

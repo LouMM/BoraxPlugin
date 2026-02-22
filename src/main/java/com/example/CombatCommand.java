@@ -2,11 +2,12 @@
 package com.example;
 
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 import java.util.Comparator;
 import java.util.List;
@@ -29,26 +30,26 @@ public class CombatCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!sender.hasPermission("combat.use")) {
-            sender.sendMessage(ChatColor.RED + "No permission!");
+            sender.sendMessage(Component.text("No permission!").color(NamedTextColor.RED));
             return true;
         }
         if (!configManager.isCombatTrackingEnabled()) {
-            sender.sendMessage(ChatColor.RED + "Combat tracking disabled!");
+            sender.sendMessage(Component.text("Combat tracking disabled!").color(NamedTextColor.RED));
             return true;
         }
         if (args.length < 1) {
-            sender.sendMessage(ChatColor.YELLOW + "/combat lookup <player/uuid> [recent|full] [limit=10] | delete <player/uuid|all> <Xd>");
+            sender.sendMessage(Component.text("/combat lookup <player/uuid> [recent|full] [limit=10] | delete <player/uuid|all> <Xd>").color(NamedTextColor.YELLOW));
             return true;
         }
         String subCmd = args[0].toLowerCase();
         if (subCmd.equals("lookup")) {
             if (args.length < 2) {
-                sender.sendMessage(ChatColor.YELLOW + "Usage: lookup <player/uuid> [recent|full] [limit]");
+                sender.sendMessage(Component.text("Usage: lookup <player/uuid> [recent|full] [limit]").color(NamedTextColor.YELLOW));
                 return true;
             }
             UUID targetUuid = resolveUuid(args[1]);
             if (targetUuid == null) {
-                sender.sendMessage(ChatColor.RED + "Player/UUID not found: " + args[1]);
+                sender.sendMessage(Component.text("Player/UUID not found: " + args[1]).color(NamedTextColor.RED));
                 return true;
             }
             String mode = args.length > 2 ? args[2].toLowerCase() : "recent";
@@ -64,48 +65,51 @@ public class CombatCommand implements CommandExecutor {
                 records = combatCache.getRecordsInvolvingPlayer(targetUuid, limit);
             }
 
-            sender.sendMessage(ChatColor.GOLD + "Combat for " + args[1] + " (" + mode + "):");
+            sender.sendMessage(Component.text("Combat for " + args[1] + " (" + mode + "):").color(NamedTextColor.GOLD));
             if (records.isEmpty()) {
-                sender.sendMessage(ChatColor.GRAY + "No records.");
+                sender.sendMessage(Component.text("No records.").color(NamedTextColor.GRAY));
                 return true;
             }
             for (CombatRecord r : records) {
                 boolean outgoing = r.attackerUUID().equals(targetUuid);
-                String prefix = outgoing ? ChatColor.GREEN + "Hit " : ChatColor.RED + "Hit by ";
+                Component prefix = outgoing ? Component.text("Hit ").color(NamedTextColor.GREEN) : Component.text("Hit by ").color(NamedTextColor.RED);
                 String other = outgoing ? r.victimName() : r.attackerName();
-                String kill = r.isFatalKill() ? ChatColor.DARK_RED + " [KILL]" : "";
-                String msg = prefix + ChatColor.YELLOW + other + ChatColor.GREEN + " (" + r.damageAmount() + "dmg" + kill + ") " + ChatColor.BLUE + r.weaponMaterial().name()
-                        + " at " + ChatColor.RED + r.hitLocation().getBlockX() + "," + r.hitLocation().getBlockY() + "," + r.hitLocation().getBlockZ()
-                        + " (" + r.hitBodyPart() + ")";
+                Component kill = r.isFatalKill() ? Component.text(" [KILL]").color(NamedTextColor.DARK_RED) : Component.empty();
+                Component msg = prefix.append(Component.text(other).color(NamedTextColor.YELLOW))
+                        .append(Component.text(" (" + r.damageAmount() + "dmg").color(NamedTextColor.GREEN))
+                        .append(kill)
+                        .append(Component.text(") " + r.weaponMaterial().name()).color(NamedTextColor.GREEN))
+                        .append(Component.text(" at " + r.hitLocation().getBlockX() + "," + r.hitLocation().getBlockY() + "," + r.hitLocation().getBlockZ()).color(NamedTextColor.RED))
+                        .append(Component.text(" (" + r.hitBodyPart() + ")").color(NamedTextColor.RED));
                 sender.sendMessage(msg);
             }
         } else if (subCmd.equals("delete")) {
             if (args.length < 3) {
-                sender.sendMessage(ChatColor.YELLOW + "Usage: delete <player/uuid|all> <Xd e.g. 5d>");
+                sender.sendMessage(Component.text("Usage: delete <player/uuid|all> <Xd e.g. 5d>").color(NamedTextColor.YELLOW));
                 return true;
             }
             String target = args[1].toLowerCase();
             String timespanStr = args[2].toLowerCase();
             long timespanMs = parseTimespan(timespanStr);
             if (timespanMs <= 0) {
-                sender.sendMessage(ChatColor.RED + "Invalid timespan: " + timespanStr);
+                sender.sendMessage(Component.text("Invalid timespan: " + timespanStr).color(NamedTextColor.RED));
                 return true;
             }
 
             if (target.equals("all")) {
                 persistenceManager.deleteOldRecordsForAll(timespanMs);
-                sender.sendMessage(ChatColor.GREEN + "Deleted old records for all players.");
+                sender.sendMessage(Component.text("Deleted old records for all players.").color(NamedTextColor.GREEN));
             } else {
                 UUID uuid = resolveUuid(target);
                 if (uuid == null) {
-                    sender.sendMessage(ChatColor.RED + "Player/UUID not found: " + target);
+                    sender.sendMessage(Component.text("Player/UUID not found: " + target).color(NamedTextColor.RED));
                     return true;
                 }
                 persistenceManager.deleteOldRecords(uuid, timespanMs);
-                sender.sendMessage(ChatColor.GREEN + "Deleted old records for " + target);
+                sender.sendMessage(Component.text("Deleted old records for " + target).color(NamedTextColor.GREEN));
             }
         } else {
-            sender.sendMessage(ChatColor.RED + "Unknown: " + subCmd);
+            sender.sendMessage(Component.text("Unknown: " + subCmd).color(NamedTextColor.RED));
         }
         return true;
     }

@@ -4,21 +4,29 @@ package com.example;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
-import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Tab for /loc: Players.
+ * Tab for /loc: Players (online and offline).
  */
 public class LocationTabCompleter implements TabCompleter {
+    private final NameUuidManager nameUuidManager;
+
+    public LocationTabCompleter(NameUuidManager nameUuidManager) {
+        this.nameUuidManager = nameUuidManager;
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
-            for (Player p : sender.getServer().getOnlinePlayers()) {
-                completions.add(p.getName());
+            String partial = args[0].toLowerCase();
+            for (String name : nameUuidManager.getAllKnownNames()) {
+                if (name.toLowerCase().startsWith(partial)) {
+                    completions.add(name);
+                }
             }
         }
         return completions;

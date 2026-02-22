@@ -171,11 +171,13 @@ public class FightManager implements Listener {
         } else {
             winnerMsg = "§eTie game!";
             clearSession();
-            Bukkit.broadcastMessage(winnerMsg + " §fScores: T1 " + finalScores.team1Score() + " T2 " + finalScores.team2Score());
+            String messageText = winnerMsg + " §fScores: T1 " + finalScores.team1Score() + " T2 " + finalScores.team2Score();
+            Bukkit.getServer().getOnlinePlayers().forEach(p -> p.sendMessage(messageText));
             return;
         }
 
-        Bukkit.broadcastMessage(winnerMsg + " §fScores: T1 " + finalScores.team1Score() + " T2 " + finalScores.team2Score());
+        String messageText = winnerMsg + " §fScores: T1 " + finalScores.team1Score() + " T2 " + finalScores.team2Score();
+        Bukkit.getServer().getOnlinePlayers().forEach(p -> p.sendMessage(messageText));
 
         // Update wins/losses
         for (UUID winner : winners) {

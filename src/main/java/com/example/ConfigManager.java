@@ -2,7 +2,6 @@
 // Abstracts all settings to config.yml; overridable by OP commands or file edits + /fight reload
 package com.example;
 
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.List;
