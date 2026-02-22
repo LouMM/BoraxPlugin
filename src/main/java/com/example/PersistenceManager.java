@@ -1,25 +1,24 @@
-// Update to src/main/java/com/example/PersistenceManager.java (fix name scope: use file.getName())
 package com.example;
 
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 /**
- * Handles persistence: Combat records per player YAML files, wins/losses in single file.
- * Loads on enable, saves periodically/on disable; merges in-memory to disk.
+ * Persistence: GZIP-compressed YAML for records; wins separate.
+ * Adds full involving lookup by scanning all files.
  */
 public class PersistenceManager {
     private final JavaPlugin plugin;
     private final File dataFolder;
     private final File winsFile;
     private final Map<UUID, WinsLosses> winsLossesMap = new ConcurrentHashMap<>();
-    private final Map<UUID, List<CombatRecord>> diskRecordsCache = new ConcurrentHashMap<>();  // Loaded on demand for full lookups
 
     public PersistenceManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -54,7 +53,7 @@ public class PersistenceManager {
             plugin.getLogger().severe("Failed to save wins.yml: " + e.getMessage());
         }
 
-        // Merge and save records
+        // Merge/save records (GZIP)
         for (var entry : inMemoryCache.getRecordsMap().entrySet()) {
             UUID attacker = entry.getKey();
             List<CombatRecord> newRecords = new ArrayList<>(entry.getValue());
@@ -62,7 +61,7 @@ public class PersistenceManager {
 
             List<CombatRecord> diskRecords = loadDiskRecordsForPlayer(attacker);
             diskRecords.addAll(newRecords);
-            diskRecords.sort(Comparator.comparingLong(CombatRecord::timestamp).reversed());  // Newest first
+            diskRecords.sort(Comparator.comparingLong(CombatRecord::timestamp).reversed());
             saveDiskRecordsForPlayer(attacker, diskRecords);
         }
         plugin.getLogger().info("Saved persistence data.");
@@ -72,30 +71,50 @@ public class PersistenceManager {
         File playerFile = getPlayerFile(playerUUID);
         if (!playerFile.exists()) return new ArrayList<>();
 
-        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(playerFile);
-        List<CombatRecord> records = new ArrayList<>();
-        List<Map<?, ?>> rawList = yaml.getMapList("records");
-        for (Map<?, ?> raw : rawList) {
-            records.add(CombatRecord.deserialize((Map<String, Object>) raw));
+        try (GZIPInputStream gis = new GZIPInputStream(new FileInputStream(playerFile));
+             InputStreamReader reader = new InputStreamReader(gis)) {
+
+            YamlConfiguration yaml = YamlConfiguration.loadConfiguration(reader);
+            List<CombatRecord> records = new ArrayList<>();
+            List<Map<?, ?>> rawList = yaml.getMapList("records");
+
+            for (Map<?, ?> raw : rawList) {
+                records.add(CombatRecord.deserialize((Map<String, Object>) raw));
+            }
+            return records;
+        } catch (IOException e) {
+            plugin.getLogger().severe("Failed to load " + playerFile.getName() + ": " + e.getMessage());
+            return new ArrayList<>();
         }
-        diskRecordsCache.put(playerUUID, records);
-        return records;
     }
 
     private void saveDiskRecordsForPlayer(UUID playerUUID, List<CombatRecord> records) {
         File playerFile = getPlayerFile(playerUUID);
+
         YamlConfiguration yaml = new YamlConfiguration();
-        List<Map<String, Object>> serialized = records.stream().map(CombatRecord::serialize).toList();
+        List<Map<String, Object>> serialized = records.stream()
+                .map(CombatRecord::serialize)
+                .toList();
         yaml.set("records", serialized);
-        try {
-            yaml.save(playerFile);
+
+        // Convert to string first (this is what YamlConfiguration.save(File) does internally)
+        String yamlString = yaml.saveToString();
+
+        try (FileOutputStream fos = new FileOutputStream(playerFile);
+             GZIPOutputStream gos = new GZIPOutputStream(fos);
+             OutputStreamWriter writer = new OutputStreamWriter(gos)) {
+
+            writer.write(yamlString);
+            writer.flush();           // Important for GZIP
+            gos.finish();             // Finalize GZIP stream
+
         } catch (IOException e) {
             plugin.getLogger().severe("Failed to save " + playerFile.getName() + ": " + e.getMessage());
         }
     }
 
     private File getPlayerFile(UUID playerUUID) {
-        return new File(dataFolder, playerUUID.toString() + ".yml");
+        return new File(dataFolder, playerUUID.toString() + ".gz");
     }
 
     public void deleteOldRecords(UUID playerUUID, long timespanMs) {
@@ -103,20 +122,40 @@ public class PersistenceManager {
         List<CombatRecord> records = loadDiskRecordsForPlayer(playerUUID);
         records.removeIf(record -> record.timestamp() < cutoff);
         saveDiskRecordsForPlayer(playerUUID, records);
-        diskRecordsCache.remove(playerUUID);
     }
 
     public void deleteOldRecordsForAll(long timespanMs) {
-        for (File file : Objects.requireNonNull(dataFolder.listFiles((dir, name) -> name.endsWith(".yml")))) {
+        for (File file : Objects.requireNonNull(dataFolder.listFiles((dir, name) -> name.endsWith(".gz")))) {
             String fileName = file.getName();
             UUID uuid;
             try {
-                uuid = UUID.fromString(fileName.replace(".yml", ""));
+                uuid = UUID.fromString(fileName.replace(".gz", ""));
             } catch (IllegalArgumentException e) {
                 continue;
             }
             deleteOldRecords(uuid, timespanMs);
         }
+    }
+
+    public List<CombatRecord> getFullRecordsInvolvingPlayer(UUID targetUUID) {
+        List<CombatRecord> involving = new ArrayList<>();
+        for (File file : Objects.requireNonNull(dataFolder.listFiles((dir, name) -> name.endsWith(".gz")))) {
+            String fileName = file.getName();
+            UUID attackerUUID;
+            try {
+                attackerUUID = UUID.fromString(fileName.replace(".gz", ""));
+            } catch (IllegalArgumentException e) {
+                continue;
+            }
+            List<CombatRecord> records = loadDiskRecordsForPlayer(attackerUUID);
+            for (CombatRecord record : records) {
+                if (record.attackerUUID().equals(targetUUID) || record.victimUUID().equals(targetUUID)) {
+                    involving.add(record);
+                }
+            }
+        }
+        involving.sort(Comparator.comparingLong(CombatRecord::timestamp).reversed());
+        return involving;
     }
 
     public Map<UUID, WinsLosses> getWinsLossesMap() {

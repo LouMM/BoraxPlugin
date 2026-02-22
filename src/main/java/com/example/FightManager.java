@@ -187,19 +187,27 @@ public class FightManager implements Listener {
             persistenceManager.updateWinsLosses(loser, current.incrementLosses());
         }
 
-        // Steal loot
-        List<UUID> winnerList = new ArrayList<>(winners);
+        // --- UPDATED STEAL LOOT LOGIC ---
         for (UUID loserUuid : losers) {
             Player loserP = Bukkit.getPlayer(loserUuid);
             if (loserP == null) continue;
+
             ItemStack stolen = findRandomHighValueItem(loserP);
             if (stolen != null) {
-                loserP.getInventory().remove(stolen.clone());
-                UUID randWinner = winnerList.get((int) (Math.random() * winnerList.size()));
-                Player winnerP = Bukkit.getPlayer(randWinner);
-                if (winnerP != null) {
-                    winnerP.getInventory().addItem(stolen);
-                    winnerP.sendMessage("§aStolen: §b" + stolen.getType().name());
+                // Restrict theft to 1 item so we don't duplicate a stack of 64 to everyone
+                stolen.setAmount(1);
+
+                // Safely remove exactly 1 of that item from the loser
+                loserP.getInventory().removeItem(stolen);
+                loserP.sendMessage("§cYou lost a §b" + stolen.getType().name() + " §cto the winning team!");
+
+                // Give a copy of that 1 item to EVERY player on the winning team
+                for (UUID winnerUuid : winners) {
+                    Player winnerP = Bukkit.getPlayer(winnerUuid);
+                    if (winnerP != null) {
+                        winnerP.getInventory().addItem(stolen.clone());
+                        winnerP.sendMessage("§aLoot Share! You received a stolen §b" + stolen.getType().name() + " §afrom " + loserP.getName());
+                    }
                 }
             }
         }

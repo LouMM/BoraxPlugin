@@ -1,6 +1,6 @@
-# Update src/main/resources/plugin.yml (add delete to combat command)
+# Update src/main/resources/plugin.yml (add borax command, update combat desc)
 name: PlayerLocs
-version: '${project.version}'
+version: '${version}'
 main: com.example.PlayerLocs
 api-version: '1.21'
 author: You
@@ -9,21 +9,34 @@ commands:
     description: Send player locations to API
     usage: /locs
     permission: playerlocs.use
+  loc:
+    description: Get specific player location.
+    usage: /loc <player/uuid>
+    permission: playerlocs.use
   fight:
-    description: Manage Fight mode teams and start fights (list open to all)
+    description: Manage Fight mode teams and start fights
     usage: /fight <team1|team2|start|end|clear|scores|status|reload|toggle|list>
     permission: fight.use
   combat:
     description: Lookup/delete combat data
-    usage: /combat <lookup> <player-or-uuid> [recent|full] [limit] | /combat <delete> <player-or-uuid|all> <timespan e.g. 5d>
+    usage: /combat lookup <player-or-uuid>
     permission: combat.use
+  borax:
+    description: Plugin help
+    usage: /borax help
+    permission: borax.use
+  inventory:
+    description: View player inventory (online/offline)
+    usage: /inventory <player|uuid|all> [world=world]
+    permission: inventory.use
 permissions:
   playerlocs.use:
-    description: Use /locs
     default: op
   fight.use:
-    description: Use Fight mode (except list)
     default: op
   combat.use:
-    description: Use combat lookup/delete
+    default: op
+  borax.use:
+    default: true  # Open to all
+  inventory.use:
     default: op

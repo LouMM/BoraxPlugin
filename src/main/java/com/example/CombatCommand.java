@@ -1,4 +1,4 @@
-// Update src/main/java/com/example/CombatCommand.java (add recent/full modes, delete subcommand)
+// Update to src/main/java/com/example/CombatCommand.java (ensure resolveUuid method is included)
 package com.example;
 
 import org.bukkit.Bukkit;
@@ -13,8 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * /combat lookup <name/uuid> [recent|full] [limit=10]: Recent=in-memory, full=disk+memory.
- * /combat delete <name/uuid|all> <Xd>: Delete old records.
+ * /combat lookup: Use full involving for disk.
  */
 public class CombatCommand implements CommandExecutor {
     private final CombatCache combatCache;
@@ -57,10 +56,10 @@ public class CombatCommand implements CommandExecutor {
 
             List<CombatRecord> records;
             if (mode.equals("full")) {
-                records = persistenceManager.loadDiskRecordsForPlayer(targetUuid);
+                records = persistenceManager.getFullRecordsInvolvingPlayer(targetUuid);
                 records.addAll(combatCache.getRecordsInvolvingPlayer(targetUuid, Integer.MAX_VALUE));
                 records.sort(Comparator.comparingLong(CombatRecord::timestamp).reversed());
-                records = records.stream().limit(limit).toList();
+                records = records.stream().distinct().limit(limit).toList();
             } else {
                 records = combatCache.getRecordsInvolvingPlayer(targetUuid, limit);
             }

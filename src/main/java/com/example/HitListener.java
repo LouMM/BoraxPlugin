@@ -1,4 +1,4 @@
-// Update to src/main/java/com/example/HitListener.java (fix isBlocked detection, body part approx using eye height)
+// HitListener.java (fix isBlocked detection, body part approx using eye height)
 package com.example;
 
 import org.bukkit.Location;
