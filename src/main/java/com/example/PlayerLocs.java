@@ -21,6 +21,7 @@ public class PlayerLocs extends JavaPlugin implements Listener {
     private PersistenceManager persistenceManager;
     private TabListManager tabListManager;
     private NameUuidManager nameUuidManager;
+    private EscrowManager escrowManager;
 
     @Override
     public void onEnable() {
@@ -37,6 +38,7 @@ public class PlayerLocs extends JavaPlugin implements Listener {
         nameUuidManager = new NameUuidManager(this);
         fightManager = new FightManager(this, configManager, globalCombatCache, scoringEngine, persistenceManager);
         tabListManager = new TabListManager(this, persistenceManager, globalCombatCache);
+        escrowManager = new EscrowManager(this, fightManager, configManager);
 
         Objects.requireNonNull(getCommand("fight")).setExecutor(new FightCommand(this, fightManager, configManager));
         Objects.requireNonNull(getCommand("fight")).setTabCompleter(new FightTabCompleter());
@@ -47,6 +49,10 @@ public class PlayerLocs extends JavaPlugin implements Listener {
         Objects.requireNonNull(getCommand("inventory")).setTabCompleter(new InventoryTabCompleter(nameUuidManager));
         Objects.requireNonNull(getCommand("loc")).setExecutor(new LocationCommand(this, nameUuidManager));
         Objects.requireNonNull(getCommand("loc")).setTabCompleter(new LocationTabCompleter(nameUuidManager));
+        
+        EscrowCommand escrowCommand = new EscrowCommand(escrowManager, nameUuidManager);
+        Objects.requireNonNull(getCommand("escrow")).setExecutor(escrowCommand);
+        Objects.requireNonNull(getCommand("escrow")).setTabCompleter(escrowCommand);
 
         getServer().getPluginManager().registerEvents(new HitListener(globalCombatCache, fightManager, configManager), this);
         getServer().getPluginManager().registerEvents(new KillListener(globalCombatCache, fightManager, configManager), this);

@@ -25,6 +25,10 @@ commands:
     description: View player inventory (online/offline)
     usage: /inventory <player|uuid|all> [world=world]
     permission: inventory.use
+  escrow:
+    description: Manage combat log escrow
+    usage: /escrow <player> <release|list>
+    permission: mcraft.escrow
 permissions:
   playerlocs.use:
     default: op
@@ -35,4 +39,6 @@ permissions:
   borax.use:
     default: true  # Open to all
   inventory.use:
+    default: op
+  mcraft.escrow:
     default: op

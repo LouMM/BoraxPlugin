@@ -35,6 +35,10 @@ public class ConfigManager {
         return plugin.getConfig().getLong("fightDefaultDurationSeconds", 600L);
     }
 
+    public long getEscrowTimeoutSeconds() {
+        return plugin.getConfig().getLong("escrowTimeoutSeconds", 300L);
+    }
+
     // Scoring heuristics
     public double getHitDamageMultiplier() {
         return plugin.getConfig().getDouble("scoring.hitDamageMultiplier", 2.0);

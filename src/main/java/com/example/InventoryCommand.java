@@ -75,6 +75,7 @@ public class InventoryCommand implements CommandExecutor {
     }
 
     private void displayInventory(CommandSender sender, Player player) {
+        sender.sendMessage(ChatColor.DARK_GRAY + "--------------------------------------------------");
         sender.sendMessage(ChatColor.GOLD + "=== " + player.getName() + "'s Inventory ===");
         JsonObject json = new JsonObject();
         json.addProperty("avatar", player.getName());
@@ -95,6 +96,7 @@ public class InventoryCommand implements CommandExecutor {
         }
         json.add("inventory", invArray);
         plugin.getLogger().info(json.toString());
+        sender.sendMessage(ChatColor.DARK_GRAY + "--------------------------------------------------");
     }
 
     private void loadOfflineInventory(CommandSender sender, UUID uuid, String worldName) {
@@ -108,6 +110,7 @@ public class InventoryCommand implements CommandExecutor {
             CompoundTag nbt = NbtIo.readCompressed(playerDataFile.toPath(), NbtAccounter.unlimitedHeap());
             String pName = nameUuidManager.getNameFromUuid(uuid);
             OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
+            sender.sendMessage(ChatColor.DARK_GRAY + "--------------------------------------------------");
             sender.sendMessage(ChatColor.GOLD + "=== Offline " + pName + "'s Inventory ===");
 
             JsonObject json = new JsonObject();
@@ -168,6 +171,7 @@ public class InventoryCommand implements CommandExecutor {
 
             json.add("inventory", invArray);
             plugin.getLogger().info(json.toString());
+            sender.sendMessage(ChatColor.DARK_GRAY + "--------------------------------------------------");
 
         } catch (IOException e) {
             sender.sendMessage(ChatColor.RED + "Error loading data: " + e.getMessage());
