@@ -23,6 +23,8 @@ public class LocationTabCompleter implements TabCompleter {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
             String partial = args[0].toLowerCase();
+            if ("all-onlineonly".toLowerCase().startsWith(partial)) completions.add("All-OnlineOnly");
+            if ("all".toLowerCase().startsWith(partial)) completions.add("All");
             for (String name : nameUuidManager.getAllKnownNames()) {
                 if (name.toLowerCase().startsWith(partial)) {
                     completions.add(name);

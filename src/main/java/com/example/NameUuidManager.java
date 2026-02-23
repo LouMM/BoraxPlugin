@@ -69,6 +69,10 @@ public class NameUuidManager {
         nameToUuid.put(lowerName, uuid);
     }
 
+    public java.util.Set<UUID> getAllUuids() {
+        return new java.util.HashSet<>(uuidToName.keySet());
+    }
+
     public UUID getUuidFromName(String name) {
         // 1. Check our local fast cache first
         UUID localResult = nameToUuid.get(name.toLowerCase());

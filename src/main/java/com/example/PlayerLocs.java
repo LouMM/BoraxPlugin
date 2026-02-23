@@ -42,7 +42,7 @@ public class PlayerLocs extends JavaPlugin implements Listener {
 
         Objects.requireNonNull(getCommand("fight")).setExecutor(new FightCommand(this, fightManager, configManager));
         Objects.requireNonNull(getCommand("fight")).setTabCompleter(new FightTabCompleter());
-        Objects.requireNonNull(getCommand("combat")).setExecutor(new CombatCommand(globalCombatCache, configManager, persistenceManager));
+        Objects.requireNonNull(getCommand("combat")).setExecutor(new CombatCommand(globalCombatCache, configManager, persistenceManager, nameUuidManager, tabListManager));
         Objects.requireNonNull(getCommand("combat")).setTabCompleter(new CombatTabCompleter());
         Objects.requireNonNull(getCommand("borax")).setExecutor(new BoraxCommand(this));
         Objects.requireNonNull(getCommand("inventory")).setExecutor(new InventoryCommand(this, nameUuidManager));

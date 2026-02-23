@@ -118,13 +118,31 @@ public class PersistenceManager {
     }
 
     public void deleteOldRecords(UUID playerUUID, long timespanMs) {
-        long cutoff = System.currentTimeMillis() - timespanMs;
-        List<CombatRecord> records = loadDiskRecordsForPlayer(playerUUID);
-        records.removeIf(record -> record.timestamp() < cutoff);
-        saveDiskRecordsForPlayer(playerUUID, records);
+        long cutoff = timespanMs == 0 ? Long.MAX_VALUE : System.currentTimeMillis() - timespanMs;
+        
+        for (File file : Objects.requireNonNull(dataFolder.listFiles((dir, name) -> name.endsWith(".gz")))) {
+            String fileName = file.getName();
+            UUID attackerUUID;
+            try {
+                attackerUUID = UUID.fromString(fileName.replace(".gz", ""));
+            } catch (IllegalArgumentException e) {
+                continue;
+            }
+            
+            List<CombatRecord> records = loadDiskRecordsForPlayer(attackerUUID);
+            boolean changed = records.removeIf(record -> 
+                (record.attackerUUID().equals(playerUUID) || record.victimUUID().equals(playerUUID)) 
+                && record.timestamp() < cutoff
+            );
+            
+            if (changed) {
+                saveDiskRecordsForPlayer(attackerUUID, records);
+            }
+        }
     }
 
     public void deleteOldRecordsForAll(long timespanMs) {
+        long cutoff = timespanMs == 0 ? Long.MAX_VALUE : System.currentTimeMillis() - timespanMs;
         for (File file : Objects.requireNonNull(dataFolder.listFiles((dir, name) -> name.endsWith(".gz")))) {
             String fileName = file.getName();
             UUID uuid;
@@ -133,7 +151,13 @@ public class PersistenceManager {
             } catch (IllegalArgumentException e) {
                 continue;
             }
-            deleteOldRecords(uuid, timespanMs);
+            
+            List<CombatRecord> records = loadDiskRecordsForPlayer(uuid);
+            boolean changed = records.removeIf(record -> record.timestamp() < cutoff);
+            
+            if (changed) {
+                saveDiskRecordsForPlayer(uuid, records);
+            }
         }
     }
 
@@ -168,5 +192,13 @@ public class PersistenceManager {
 
     public void updateWinsLosses(UUID uuid, WinsLosses updated) {
         winsLossesMap.put(uuid, updated);
+    }
+
+    public void resetWinsLosses(UUID uuid) {
+        winsLossesMap.remove(uuid);
+    }
+
+    public void resetAllWinsLosses() {
+        winsLossesMap.clear();
     }
 }

@@ -20,11 +20,15 @@ public class CombatCommand implements CommandExecutor {
     private final CombatCache combatCache;
     private final ConfigManager configManager;
     private final PersistenceManager persistenceManager;
+    private final NameUuidManager nameUuidManager;
+    private final TabListManager tabListManager;
 
-    public CombatCommand(CombatCache combatCache, ConfigManager configManager, PersistenceManager persistenceManager) {
+    public CombatCommand(CombatCache combatCache, ConfigManager configManager, PersistenceManager persistenceManager, NameUuidManager nameUuidManager, TabListManager tabListManager) {
         this.combatCache = combatCache;
         this.configManager = configManager;
         this.persistenceManager = persistenceManager;
+        this.nameUuidManager = nameUuidManager;
+        this.tabListManager = tabListManager;
     }
 
     @Override
@@ -82,21 +86,52 @@ public class CombatCommand implements CommandExecutor {
                 sender.sendMessage(Component.text("Only OPs can delete combat records.").color(NamedTextColor.RED));
                 return true;
             }
-            if (args.length < 3) {
-                sender.sendMessage(Component.text("Usage: delete <player/uuid|all> <Xd e.g. 5d>").color(NamedTextColor.YELLOW));
+            if (args.length < 2) {
+                sender.sendMessage(Component.text("Usage: delete <player/uuid|all|winslosses> [Xd e.g. 30d or player/all]").color(NamedTextColor.YELLOW));
                 return true;
             }
             String target = args[1].toLowerCase();
-            String timespanStr = args[2].toLowerCase();
-            long timespanMs = parseTimespan(timespanStr);
-            if (timespanMs <= 0) {
-                sender.sendMessage(Component.text("Invalid timespan: " + timespanStr).color(NamedTextColor.RED));
+
+            if (target.equals("winslosses")) {
+                if (args.length < 3) {
+                    sender.sendMessage(Component.text("Usage: delete winslosses <player/uuid|all>").color(NamedTextColor.YELLOW));
+                    return true;
+                }
+                String wlTarget = args[2].toLowerCase();
+                if (wlTarget.equals("all")) {
+                    persistenceManager.resetAllWinsLosses();
+                    tabListManager.updateAllTabNames();
+                    sender.sendMessage(Component.text("Reset wins/losses for all players.").color(NamedTextColor.GREEN));
+                } else {
+                    UUID uuid = resolveUuid(wlTarget);
+                    if (uuid == null) {
+                        sender.sendMessage(Component.text("Player/UUID not found: " + wlTarget).color(NamedTextColor.RED));
+                        return true;
+                    }
+                    persistenceManager.resetWinsLosses(uuid);
+                    Player p = Bukkit.getPlayer(uuid);
+                    if (p != null) {
+                        tabListManager.updateTabName(p);
+                    }
+                    sender.sendMessage(Component.text("Reset wins/losses for " + wlTarget).color(NamedTextColor.GREEN));
+                }
                 return true;
+            }
+
+            long timespanMs = 0; // 0 means delete all
+            if (args.length >= 3) {
+                String timespanStr = args[2].toLowerCase();
+                timespanMs = parseTimespan(timespanStr);
+                if (timespanMs < 0) {
+                    sender.sendMessage(Component.text("Invalid timespan: " + timespanStr).color(NamedTextColor.RED));
+                    return true;
+                }
             }
 
             if (target.equals("all")) {
                 persistenceManager.deleteOldRecordsForAll(timespanMs);
-                sender.sendMessage(Component.text("Deleted old records for all players.").color(NamedTextColor.GREEN));
+                combatCache.deleteOldRecordsForAll(timespanMs);
+                sender.sendMessage(Component.text("Deleted records for all players" + (timespanMs == 0 ? "." : " older than " + args[2])).color(NamedTextColor.GREEN));
             } else {
                 UUID uuid = resolveUuid(target);
                 if (uuid == null) {
@@ -104,7 +139,8 @@ public class CombatCommand implements CommandExecutor {
                     return true;
                 }
                 persistenceManager.deleteOldRecords(uuid, timespanMs);
-                sender.sendMessage(Component.text("Deleted old records for " + target).color(NamedTextColor.GREEN));
+                combatCache.deleteOldRecords(uuid, timespanMs);
+                sender.sendMessage(Component.text("Deleted records for " + target + (timespanMs == 0 ? "." : " older than " + args[2])).color(NamedTextColor.GREEN));
             }
         } else {
             sender.sendMessage(Component.text("Unknown: " + subCmd).color(NamedTextColor.RED));
@@ -158,8 +194,7 @@ public class CombatCommand implements CommandExecutor {
         try {
             return UUID.fromString(input);
         } catch (IllegalArgumentException ignored) {
-            Player p = Bukkit.getPlayer(input);
-            return p != null ? p.getUniqueId() : null;
+            return nameUuidManager.getUuidFromName(input);
         }
     }
 

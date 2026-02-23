@@ -33,7 +33,13 @@ public class FightTabCompleter implements TabCompleter {
                         "fight.penaltyMode",
                         "fight.broadcast",
                         "fight.KeepInventoryDuringFight",
-                        "fight.KeepInventoryFightEnd"
+                        "fight.KeepInventoryFightEnd",
+                        "scoring.hitDamageMultiplier",
+                        "scoring.blockHitterPoints",
+                        "scoring.blockBlockerPoints",
+                        "scoring.killBasePoints",
+                        "scoring.armorBonusPerTier",
+                        "scoring.weakWeaponBonusPerTier"
                 ));
             }
         } else if (args.length == 3) {
@@ -53,6 +59,12 @@ public class FightTabCompleter implements TabCompleter {
                 else if (args[1].equalsIgnoreCase("fight.penaltyMode")) completions.addAll(List.of("STEAL", "DEATH", "NONE"));
                 else if (args[1].equalsIgnoreCase("fight.broadcast")) completions.addAll(List.of("true", "false"));
                 else if (args[1].equalsIgnoreCase("fight.KeepInventoryDuringFight") || args[1].equalsIgnoreCase("fight.KeepInventoryFightEnd")) completions.addAll(List.of("true", "false"));
+                else if (args[1].equalsIgnoreCase("scoring.hitDamageMultiplier")) completions.add("2.0");
+                else if (args[1].equalsIgnoreCase("scoring.blockHitterPoints")) completions.add("1");
+                else if (args[1].equalsIgnoreCase("scoring.blockBlockerPoints")) completions.add("5");
+                else if (args[1].equalsIgnoreCase("scoring.killBasePoints")) completions.add("50");
+                else if (args[1].equalsIgnoreCase("scoring.armorBonusPerTier")) completions.add("10");
+                else if (args[1].equalsIgnoreCase("scoring.weakWeaponBonusPerTier")) completions.add("15");
             }
         }
         return completions;

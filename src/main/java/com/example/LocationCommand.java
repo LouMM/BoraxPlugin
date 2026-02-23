@@ -38,11 +38,33 @@ public class LocationCommand implements CommandExecutor {
             }
 
             if (args.length < 1) {
-                sender.sendMessage(ChatColor.YELLOW + "Usage: /loc <player/uuid>");
+                sender.sendMessage(ChatColor.YELLOW + "Usage: /loc <player/uuid|All-OnlineOnly|All>");
                 return true;
             }
 
             String targetStr = args[0];
+
+            if (targetStr.equalsIgnoreCase("All-OnlineOnly")) {
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    String locMsg = String.format("%s's Location: %.2f, %.2f, %.2f in %s", 
+                        p.getName(), p.getLocation().getX(), p.getLocation().getY(), p.getLocation().getZ(), p.getLocation().getWorld().getName());
+                    sender.sendMessage(ChatColor.GOLD + locMsg);
+                }
+                return true;
+            } else if (targetStr.equalsIgnoreCase("All")) {
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    String locMsg = String.format("%s's Location: %.2f, %.2f, %.2f in %s", 
+                        p.getName(), p.getLocation().getX(), p.getLocation().getY(), p.getLocation().getZ(), p.getLocation().getWorld().getName());
+                    sender.sendMessage(ChatColor.GOLD + locMsg);
+                }
+                for (UUID uuid : nameUuidManager.getAllUuids()) {
+                    if (Bukkit.getPlayer(uuid) == null) {
+                        loadOfflineLocation(sender, uuid);
+                    }
+                }
+                return true;
+            }
+
             UUID uuid = nameUuidManager.getUuidFromName(targetStr);
             if (uuid == null) {
                 try { 

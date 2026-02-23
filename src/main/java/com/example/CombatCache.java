@@ -57,4 +57,26 @@ public class CombatCache {
     public void clearAfterPersist() {
         attackerToRecords.clear();
     }
+
+    public void deleteOldRecords(UUID playerUUID, long timespanMs) {
+        long cutoff = timespanMs == 0 ? Long.MAX_VALUE : System.currentTimeMillis() - timespanMs;
+        
+        // Remove where player is attacker
+        Deque<CombatRecord> attackerRecords = attackerToRecords.get(playerUUID);
+        if (attackerRecords != null) {
+            attackerRecords.removeIf(record -> record.timestamp() < cutoff);
+        }
+        
+        // Remove where player is victim
+        for (Deque<CombatRecord> records : attackerToRecords.values()) {
+            records.removeIf(record -> record.victimUUID().equals(playerUUID) && record.timestamp() < cutoff);
+        }
+    }
+
+    public void deleteOldRecordsForAll(long timespanMs) {
+        long cutoff = timespanMs == 0 ? Long.MAX_VALUE : System.currentTimeMillis() - timespanMs;
+        for (Deque<CombatRecord> records : attackerToRecords.values()) {
+            records.removeIf(record -> record.timestamp() < cutoff);
+        }
+    }
 }

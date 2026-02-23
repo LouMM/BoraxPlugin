@@ -47,13 +47,13 @@ public class TabListManager implements Listener {
         updateTabName(event.getPlayer());
     }
 
-    private void updateAllTabNames() {
+    public void updateAllTabNames() {
         for (Player p : Bukkit.getOnlinePlayers()) {
             updateTabName(p);
         }
     }
 
-    private void updateTabName(Player player) {
+    public void updateTabName(Player player) {
         UUID uuid = player.getUniqueId();
         WinsLosses wl = persistenceManager.getWinsLosses(uuid);
         int ping = player.getPing();

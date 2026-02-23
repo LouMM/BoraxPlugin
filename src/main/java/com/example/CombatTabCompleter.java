@@ -32,7 +32,7 @@ public class CombatTabCompleter implements TabCompleter {
                     completions.add(p.getName());
                 }
             } else if (args[0].equalsIgnoreCase("delete") && sender.isOp()) {
-                completions.addAll(List.of("all"));
+                completions.addAll(List.of("all", "winslosses"));
                 for (Player p : sender.getServer().getOnlinePlayers()) {
                     completions.add(p.getName());
                 }
@@ -40,12 +40,27 @@ public class CombatTabCompleter implements TabCompleter {
         } else if (args.length == 3) {
             if (args[0].equalsIgnoreCase("lookup")) {
                 completions.addAll(List.of("recent", "full"));
-            } else if (args[0].equalsIgnoreCase("delete")) {
-                completions.addAll(List.of("5d", "30d"));  // Examples
+            } else if (args[0].equalsIgnoreCase("delete") && sender.isOp()) {
+                if (args[1].equalsIgnoreCase("winslosses")) {
+                    completions.add("all");
+                    for (Player p : sender.getServer().getOnlinePlayers()) {
+                        completions.add(p.getName());
+                    }
+                } else {
+                    completions.addAll(List.of("5d", "30d"));  // Examples
+                }
             }
         } else if (args.length == 4 && args[0].equalsIgnoreCase("lookup")) {
             completions.add("10");  // Limit example
         }
-        return completions;
+        
+        String currentArg = args[args.length - 1].toLowerCase();
+        List<String> filtered = new ArrayList<>();
+        for (String c : completions) {
+            if (c.toLowerCase().startsWith(currentArg)) {
+                filtered.add(c);
+            }
+        }
+        return filtered;
     }
 }

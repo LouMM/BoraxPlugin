@@ -102,8 +102,13 @@ public class FightCommand implements CommandExecutor {
                 try {
                     if (setting.equalsIgnoreCase("fightDefaultDurationSeconds") || setting.equalsIgnoreCase("escrowTimeoutSeconds")) {
                         plugin.getConfig().set(setting, Long.parseLong(valueStr));
-                    } else if (setting.equalsIgnoreCase("autoFight.hitCount") || setting.equalsIgnoreCase("autoFight.timeWindowSeconds")) {
+                    } else if (setting.equalsIgnoreCase("autoFight.hitCount") || setting.equalsIgnoreCase("autoFight.timeWindowSeconds") ||
+                               setting.equalsIgnoreCase("scoring.blockHitterPoints") || setting.equalsIgnoreCase("scoring.blockBlockerPoints") ||
+                               setting.equalsIgnoreCase("scoring.killBasePoints") || setting.equalsIgnoreCase("scoring.armorBonusPerTier") ||
+                               setting.equalsIgnoreCase("scoring.weakWeaponBonusPerTier")) {
                         plugin.getConfig().set(setting, Integer.parseInt(valueStr));
+                    } else if (setting.equalsIgnoreCase("scoring.hitDamageMultiplier")) {
+                        plugin.getConfig().set(setting, Double.parseDouble(valueStr));
                     } else if (setting.equalsIgnoreCase("fight.penaltyMode")) {
                         plugin.getConfig().set(setting, valueStr.toUpperCase());
                     } else if (setting.equalsIgnoreCase("fight.broadcast")) {
